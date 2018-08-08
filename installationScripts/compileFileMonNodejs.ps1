@@ -4,7 +4,7 @@
 $p = [Environment]::GetFolderPath("Desktop") + "\sysmonviz"
 New-Item -Force -ItemType directory -Path $p
 cd $p
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/filemonitor.js", [Environment]::GetFolderPath("Desktop") + "\sysmonviz\filemonitor.js")
+(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/jymcheong/SysmonViz/master/filemonitor.js", [Environment]::GetFolderPath("Desktop") + "\sysmonviz\filemonitor.js")
 
 # install chocolatey 
 Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))

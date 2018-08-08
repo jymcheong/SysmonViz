@@ -7,9 +7,9 @@ cd $p
 Import-Module BitsTransfer
 (New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Sysmon.zip", "$p\sysmon.zip")
 Start-BitsTransfer -Source "https://nxlog.co/system/files/products/files/348/nxlog-ce-2.10.2102.msi" -Destination "$p\nxlog.msi"
-Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/configFiles/smconfig.xml" -Destination "$p\smconfig.xml"
-Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/configFiles/nxlog.conf" -Destination "$p\nxlog.conf"
-Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/filemonitor.js" -Destination "$p\filemonitor.js"
+Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/configFiles/smconfig.xml" -Destination "$p\smconfig.xml"
+Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/configFiles/nxlog.conf" -Destination "$p\nxlog.conf"
+Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/filemonitor.js" -Destination "$p\filemonitor.js"
 
 # unzip Sysmon.zip
 $shell = New-Object -ComObject Shell.Application
@@ -47,4 +47,4 @@ Start-Process -FilePath $scpath -Wait -ArgumentList "start nxlog"
 
 ii $logpath # use explorer to open logs folder, you should see logs rotated
 
-powershell -nop -c "`$odbserver='$odbserver'; iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/installationScripts/installfilemonitor.ps1')"
+powershell -nop -c "`$odbserver='$odbserver'; iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installfilemonitor.ps1')"

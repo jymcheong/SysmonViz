@@ -7,8 +7,8 @@ cd $p
 
 # download the necessary files
 Import-Module BitsTransfer
-Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/filemonitor.js" -Destination "$p\filemonitor.js"
-Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonResources/master/5.%20Threat%20Analytics/orientDB/node8win32.zip" -Destination "$p\node8win32.zip"
+Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/filemonitor.js" -Destination "$p\filemonitor.js"
+Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/node8win32.zip" -Destination "$p\node8win32.zip"
 
 # unzip the portable nodejs-8
 $shell = New-Object -ComObject Shell.Application
