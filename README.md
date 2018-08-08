@@ -25,7 +25,7 @@ SysmonViz uses a multi-model database ([OrientDB Community Edition](https://orie
 
 ### Windows based OrientDB 
 
-**Please ensure Java 8+ runtime is installed**. Use an **admin CMD console** & paste the following ([review script source](https://github.com/jymcheong/SysmonResources/blob/master/5.%20Threat%20Analytics/orientDB/installationScripts/installorientDB.ps1)):
+**Please ensure Java 8+ runtime is installed**. Use an **admin CMD console** & paste the following ([review script source](https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installorientDB.ps1)):
 
 ```
 powershell -nop -c "iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installorientDB.ps1')"
