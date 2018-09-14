@@ -22,8 +22,8 @@ sudo echo "X11Forwarding no " >> /etc/ssh/sshd_config
 sudo systemctl restart sshd
 
 # Log all SFTP activities, we can use it to detect intrusions
-# Suppose machine being monitored is compromised. At some juncture,
-# attacker will use the uploader SFTP credentials
+# Suppose "uploading" machine is compromised. At some juncture,
+# attacker will use the uploader SFTP private key file
 # Due to chroot, a socket folder needs to be created for 
 sudo mkdir -m2755 /var/sftp/dev
 sudo echo 'input(type="imuxsock" Socket="/var/sftp/dev/log" CreatePath="on")' >> /etc/rsyslog.d/sftp.conf
