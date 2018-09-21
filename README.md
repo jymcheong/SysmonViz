@@ -1,6 +1,10 @@
 # Sysmon Visualization (SysmonViz)
 
 ## Why?
+**SysmonViz is not meant for production but for exploration of Window system behavior**. I have yet to test it on a larger network with high event rate. Sysmon itself also has certain limitations. It is useful to understand what's going on within a Windows host at a "mid-level" granularity as oppose to deep instrumentation down to the APIs or machine instructions level.
+
+EDR are too expensive for students & enthusiasts, most of the Sysmon visualization I have seen so far are "batch-offline" based & can be tedious. It is part of a method which I came up known as User-Action-Tracking: https://www.linkedin.com/pulse/user-action-tracking-jym-cheong/ . In the article, I stressed the need to better understand what is usual/normal user activities/use-cases so that we can triage better.
+
 I needed a reason to tinker with NodeJS & a graph database & this is a good one. Please forgive me if some of the Javascript codes are horrible! It is part of my other projects:
 
 * [Automated Payload Test Controller](https://github.com/jymcheong/aptc)
@@ -8,9 +12,7 @@ I needed a reason to tinker with NodeJS & a graph database & this is a good one.
 * Hardcoding credentials into script is a bad idea, try to use it with [One-way Transport of System Event Logs via SFTP](https://github.com/jymcheong/OneWaySFTP) for > 1 client Windows to visualize
 * [Sysmon Resources](https://github.com/jymcheong/SysmonResources)
 
-**SysmonViz is not meant for production**. I have yet to test it on a larger network with high event rate. Sysmon itself also has certain limitations. It is useful to understand what's going on within a Windows host at a "mid-level" granularity as oppose to deep instrumentation down to the APIs or machine instructions level.
 
-EDR are expensive, most of the Sysmon visualization I have seen so far are "batch-offline" based & can be tedious. It is part of a method which I came up known as User-Action-Tracking: https://www.linkedin.com/pulse/user-action-tracking-jym-cheong/
 
 ## How does it look like?
 
