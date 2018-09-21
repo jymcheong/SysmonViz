@@ -10,6 +10,8 @@ I needed a reason to tinker with NodeJS & a graph database & this is a good one.
 
 **SysmonViz is not meant for production**. I have yet to test it on a larger network with high event rate. Sysmon itself also has certain limitations. It is useful to understand what's going on within a Windows host at a "mid-level" granularity as oppose to deep instrumentation down to the APIs or machine instructions level.
 
+EDR are expensive, most of the Sysmon visualization I have seen so far are "batch-offline" based & can be tedious. It is part of a method which I came up known as User-Action-Tracking: https://www.linkedin.com/pulse/user-action-tracking-jym-cheong/
+
 ## How does it look like?
 
 ![](images/smss.png)
