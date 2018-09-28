@@ -1,5 +1,6 @@
 const directory_to_monitor = "TARGETDIR";
 // Start ODB stuff ---CHANGE IT TO SUIT YOUR ENVIRONMENT!---
+// NOT FOR PRODUCTION USE
 var ODB_User = 'root'
 var ODB_pass = 'Password1234'
 var OrientDB = require('orientjs');
