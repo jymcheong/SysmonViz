@@ -33,6 +33,7 @@ SysmonViz uses a multi-model database ([OrientDB Community Edition](https://orie
 **Please ensure Java 8+ runtime is installed**. Use an **admin CMD console** & paste the following ([review script source](https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installorientDB.ps1)):
 
 ```
+cd %userprofile%\desktop
 powershell -nop -c "iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installorientDB.ps1')"
 ```
 
@@ -45,6 +46,7 @@ Please ensure **wget** & **Java** **8+ runtime** are installed. Download the [in
 Use an **admin CMD console** & paste the following ([review script source](https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installsysmonviz.ps1)):
 
 ```
+cd %userprofile%\desktop
 powershell -nop -c "$odbserver='YOURSERVERIP';iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installsysmonviz.ps1')"
 ```
 
