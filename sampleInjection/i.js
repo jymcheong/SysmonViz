@@ -27,7 +27,8 @@ function processFile(inputFile) {
     rl.on('line', function (line) {
         console.log(escape(line));
         if(line.length > 0) {
-            db.query("select AddEvent(:data)",{params:{data:escape(line)}})            
+            //db.query("select AddEvent(:data)",{params:{data:escape(line)}})            
+            db.query("select AddEvent(:data)",{params:{data:escape(line)}})
         }    
         console.log('')
     });
