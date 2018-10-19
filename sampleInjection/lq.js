@@ -11,7 +11,7 @@ OrientDBClient.connect({
     // use the session
        console.log('session opened')
        _session = session;
-       _handle = session.liveQuery("select from ProcessCreate").on("data", data => {
+       _handle = session.liveQuery("select from processcreate").on("data", data => {
 //       _handle = session.liveQuery("select from parentof").on("data", data => {
             console.log(data);
         });
