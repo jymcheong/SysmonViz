@@ -93,7 +93,7 @@ function processLine(eventline) {
             stmt = "select AddEvent(:data)"
             lineCount++
             db.query(stmt,{params:{data:escape(eventline)}})
-                .then(function(response){ 
+            .then(function(response){ 
                 rowCount++
             });
         }
