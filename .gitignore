@@ -1,3 +1,8 @@
 
 sampleInjection/node_modules/*
 serverSide/RIDcache/*
+.sync/root_acl_entry
+Icon
+.sync/ID
+.sync/IgnoreList
+.sync/StreamsList
