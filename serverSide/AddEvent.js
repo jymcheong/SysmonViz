@@ -127,7 +127,7 @@
                  print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
               	 db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))
                  print()
-              	 db.command('CREATE EDGE hasHashes FROM ? to ?',IHT_rid, HUPC_rid)
+              	 db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)
             }
             break;
       
