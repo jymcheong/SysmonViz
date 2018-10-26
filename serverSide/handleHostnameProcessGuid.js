@@ -5,13 +5,7 @@ var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
                     'NetworkConnect':'ConnectedTo', 'ImageLoad':'LoadedImage'}
 
 const fs = require("fs")
-const _cachedir = __dirname + '/RIDcache';
 eval(fs.readFileSync(__dirname + '/cleanup.js')+'');
-
-// this will hold the HostnameProcessGuid -> @rid
-if (!fs.existsSync(_cachedir)){
-    fs.mkdirSync(_cachedir);
-}
 
 const OrientDBClient = require("orientjs").OrientDBClient
 OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
@@ -55,7 +49,7 @@ function findProcessCreate(newEvent) {
         case "RegistryEvent":   //ID13&14: ProcessCreate-[AccessedRegistry]->RegistryEvent
         case "NetworkConnect":  //ID3: ProcessCreate-[ConnectedTo]->NetworkConnect 
             // find processcreate @rid from cache
-            fs.readFile(_cachedir + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], function(err, processCreateRid){
+            fs.readFile(_cacheProcessCreateRID + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], function(err, processCreateRid){
                 if(err) { // not in cache, find in database
                     console.log('Trying database to find for ' + newEvent['@rid']+ '...')
                     _session.query("select @rid from (select from processcreate where ProcessGuid = :guid) where Hostname = :hostname", 
@@ -66,7 +60,7 @@ function findProcessCreate(newEvent) {
                             console.log('cannot find processcreate for ' + newEvent['@rid'])
                         }
                         else {
-                            fs.writeFile(_cachedir + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], results[0]['@rid'], function(err) { if(err) console.log(err) });
+                            fs.writeFile(_cacheProcessCreateRID + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], results[0]['@rid'], function(err) { if(err) console.log(err) });
                             linkNewEvent(newEvent['@class'],results[0]['@rid'], newEvent['@rid'])
                         }
                     });

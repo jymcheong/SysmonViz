@@ -1,4 +1,14 @@
 var _session, _client, _handle;
+var _cachedir = __dirname + '/cache';
+if (!fs.existsSync(_cachedir)){
+    fs.mkdirSync(_cachedir);
+}
+
+var _cacheProcessCreateRID = _cachedir + '/ProcessCreateRID'
+if (!fs.existsSync(_cacheProcessCreateRID)){
+    fs.mkdirSync(_cacheProcessCreateRID);
+}
+
 process.stdin.resume(); //so the program will not close instantly
 function exitHandler(err) {
     if(err != null) console.log(err)

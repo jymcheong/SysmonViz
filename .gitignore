@@ -1,6 +1,6 @@
 
 sampleInjection/node_modules/*
-serverSide/RIDcache/*
+serverSide/cache/*
 .sync/root_acl_entry
 Icon
 .sync/ID
