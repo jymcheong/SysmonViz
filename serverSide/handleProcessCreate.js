@@ -58,7 +58,7 @@ function findParent(newpc) {
             { params : {guid: newpc['ParentProcessGuid'], hostname: newpc['Hostname']}})
             .all()
             .then((results)=> {
-                if(results[0]['@rid']===undefined) {
+                if(results.length == 0) {
                     console.log('cannot find parent for ' + newpc['@rid'])
                     return
                 }
