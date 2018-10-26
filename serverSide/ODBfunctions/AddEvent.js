@@ -85,6 +85,7 @@
   
   switch(classname) {
     case "ProcessCreate":
+      		var current_id = r[0].getProperty('id')
       		// update SMSS.exe ID into cache table to find Type A process
       		print(Date() + " AddEvent for " + classname + " " + e['Image'] + " on " + e['Hostname'])
       		if(e['ParentImage'] == "System") {// smss.exe
@@ -129,6 +130,21 @@
                  print()
               	 db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)
             }
+      		// select from TypeA_id_cache
+      		var t = db.query('select from TypeA_id_cache')
+            //print('smss_id ' + t[0].getProperty('smss_id'))
+            //print('explorer_id ' + t[0].getProperty('explorer_id'))
+      		//print('current_id ' + current_id)
+      		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
+               && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
+            	print('ProcessType: BackgroundAfterExplorer or ForegroundAfterExplorer')
+              	// add pendingType edge
+            }
+      		else {
+              	print('ProcessType: BeforeExplorer')
+              	// update HUPC ProcessType property
+            }
+      		print('')
             break;
       
     case "DriverLoad": //ID6

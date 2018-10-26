@@ -23,9 +23,7 @@ OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
         _session = session //used in cleanup.js
         _handle = session.liveQuery("select from V") //used in cleanup.js
         .on("data", data => {
-            if(data['operation'] != 1) return               
-            //console.log('Processing ' + data['data']['Image'] + ' from ' + data['data']['Hostname']);
-            findProcessCreate(data['data'])
+            if(data['operation'] == 1) findProcessCreate(data['data'])
         })
     })
 })
@@ -33,8 +31,14 @@ OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
 function linkNewEvent(classname, sourceRID, targetRID){
         //console.log(classname + ' link ' + sourceRID + ' to ' + targetRID)
         sql = 'CREATE EDGE ' + _edgeLookup[classname] + ' FROM ' + sourceRID + ' TO ' + targetRID
-        console.log(sql)
         _session.command(sql)
+        .on("data", data => {
+            console.log('Connected ' + _edgeLookup[classname] + ' FROM ' + sourceRID + ' TO ' + targetRID)
+            _session.command('UPDATE '+ targetRID + ' SET ToBeProcessed = false')
+        })
+        .on('error',(err)=> {
+            console.log(err)
+        })
         // if ProcessTerminate, clean up file cache....
 }
 
@@ -60,14 +64,16 @@ function findProcessCreate(newEvent) {
                     .then((results)=> {
                         if(results.length == 0) {
                             console.log('cannot find processcreate for ' + newEvent['@rid'])
-                            return
                         }
-                        fs.writeFile(_cachedir + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], results[0]['@rid'], function(err) { if(err) console.log(err) });
-                        linkNewEvent(newEvent['@class'],results[0]['@rid'], newEvent['@rid'])
+                        else {
+                            fs.writeFile(_cachedir + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], results[0]['@rid'], function(err) { if(err) console.log(err) });
+                            linkNewEvent(newEvent['@class'],results[0]['@rid'], newEvent['@rid'])
+                        }
                     });
-                    return
                 }
-                linkNewEvent(newEvent['@class'],processCreateRid, newEvent['@rid'])
+                else{
+                    linkNewEvent(newEvent['@class'],processCreateRid, newEvent['@rid'])
+                }
             })   
             break;
     }
