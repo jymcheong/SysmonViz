@@ -106,7 +106,7 @@
 							RETURN AFTER @rid, Count, HashCount WHERE Hashes = ?',e['Hashes'])
 
       		var IHT_rid = u[0].getProperty('@rid')
-      		if(u[0].getProperty('Count') == 1 && u[0].getProperty('HashCount') == 1) 
+      		if(u[0].getProperty('HashCount') == 1) 
             {
                 print()
               	print(Date() + " EXE first-sighting of " + e['Image'])
