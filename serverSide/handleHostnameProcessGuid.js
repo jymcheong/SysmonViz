@@ -1,17 +1,11 @@
-var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
-                    'PipeConnected':'ConnectedPipe', 'RawAccessRead':'RawRead',
-                    'FileCreateTime':'ChangedFileCreateTime', 'FileCreate':'CreatedFile',
-                    'FileCreateStreamHash':'CreatedFileStream', 'RegistryEvent':'AccessedRegistry',
-                    'NetworkConnect':'ConnectedTo', 'ImageLoad':'LoadedImage'}
-
 const fs = require("fs")
-eval(fs.readFileSync(__dirname + '/cleanup.js')+'');
+eval(fs.readFileSync(__dirname + '/common.js')+'');
 
 const OrientDBClient = require("orientjs").OrientDBClient
-OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
+OrientDBClient.connect({ host: _host,port: _port})
 .then(client => {
     _client = client; //used in cleanup.js
-    client.session({ name: "DataFusion", username: "root", password: "Password1234" })
+    client.session({ name: _dbname, username: _user, password: _pass })
     .then(session => {
         console.log('session opened')
         _session = session //used in cleanup.js

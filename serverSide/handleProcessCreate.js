@@ -1,11 +1,11 @@
 const fs = require("fs")
-eval(fs.readFileSync(__dirname + '/cleanup.js')+'');
+eval(fs.readFileSync(__dirname + '/common.js')+'');
 
 const OrientDBClient = require("orientjs").OrientDBClient
-OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
+OrientDBClient.connect({ host: _host ,port: _port})
 .then(client => {
     _client = client; //used in cleanup.js
-    client.session({ name: "DataFusion", username: "root", password: "Password1234" })
+    client.session({ name: _dbname, username: _user, password: _pass })
     .then(session => {
         console.log('session opened')
         _session = session //used in cleanup.js
@@ -15,6 +15,30 @@ OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
         })
     })
 })
+
+function findParent(newpc) {
+    // write new @rid to cache folder
+    fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { if(err) console.log(err) });
+    // find parent @rid in cache
+    fs.readFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], function(err, parentrid){
+        if(err) { // not in cache, find in database
+            console.log('Cannot find parent rid in cache, trying database...')
+            _session.query("select @rid from (select from processcreate where ProcessGuid = :guid) where Hostname = :hostname", 
+            { params : {guid: newpc['ParentProcessGuid'], hostname: newpc['Hostname']}})
+            .all()
+            .then((results)=> {
+                if(results.length == 0) {
+                    console.log('cannot find parent for ' + newpc['@rid'])
+                    return
+                }
+                fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], results[0]['@rid'], function(err) { if(err) console.log(err) });
+                connectParentOf(results[0]['@rid'], newpc['@rid'])
+            });
+            return
+        }
+        connectParentOf(parentrid, newpc['@rid'])
+    })   
+}
 
 function connectParentOf(sourceRID, targetRID) {
     console.log('creating ParentOf from ' + sourceRID + ' to ' + targetRID)
@@ -53,26 +77,3 @@ function connectParentOf(sourceRID, targetRID) {
     })
 }
 
-function findParent(newpc) {
-    // write new @rid to cache folder
-    fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { if(err) console.log(err) });
-    // find parent @rid in cache
-    fs.readFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], function(err, parentrid){
-        if(err) { // not in cache, find in database
-            console.log('Cannot find parent rid in cache, trying database...')
-            _session.query("select @rid from (select from processcreate where ProcessGuid = :guid) where Hostname = :hostname", 
-            { params : {guid: newpc['ParentProcessGuid'], hostname: newpc['Hostname']}})
-            .all()
-            .then((results)=> {
-                if(results.length == 0) {
-                    console.log('cannot find parent for ' + newpc['@rid'])
-                    return
-                }
-                fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], results[0]['@rid'], function(err) { if(err) console.log(err) });
-                connectParentOf(results[0]['@rid'], newpc['@rid'])
-            });
-            return
-        }
-        connectParentOf(parentrid, newpc['@rid'])
-    })   
-}
