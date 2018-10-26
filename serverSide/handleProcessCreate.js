@@ -17,9 +17,7 @@ OrientDBClient.connect({ host: "172.30.1.178",port: 2424})
         _session = session //used in cleanup.js
         _handle = session.liveQuery("select from processcreate") //used in cleanup.js
         .on("data", data => {
-            if(data['operation'] != 1) return               
-            console.log('Processing ' + data['data']['Image'] + ' from ' + data['data']['Hostname']);
-            findParent(data['data'])
+            if(data['operation'] == 1) findParent(data['data'])
         })
     })
 })
@@ -39,7 +37,21 @@ function connectParentOf(sourceRID, targetRID) {
             console.log('updated processcreate ' + targetRID)
             // do 'gaps once here
         })
-        // get parentOf sequence
+        _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
+        .on('data',(s)=> {
+            _session.command('UPDATE ParentOfSequence set Sequence = :seq, Count = Count + 1 \
+            UPSERT RETURN AFTER @rid, Count WHERE Sequence = :seq',{ params : {seq: s['seq']}})
+            .on('data',(c)=> {
+                console.log('Sequence count: '+ c['Count'] + ' -> ' + s['seq'])
+                // if Count == 1 add SequenceSighted
+                if(c['Count'] == 1) {
+                    _session.command('CREATE EDGE SequenceSighted from ' + c['@rid'] + ' TO ' + targetRID)
+                    .on('data', (ss) => {
+                        console.log('Created SequenceSighted for ' + targetRID)
+                    })
+                }
+            })
+        })
     })
     .on('error',(err)=> {
         console.log('Retrying creating ParentOf from ' + sourceRID + ' to ' + targetRID)
