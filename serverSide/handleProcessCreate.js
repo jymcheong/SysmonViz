@@ -42,7 +42,7 @@ function connectParentOf(sourceRID, targetRID) {
         .on('data',(data)=> {
             console.log('updated processcreate ' + targetRID)
             // do 'gaps once here
-        })
+        }) //*/
         _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
         .on('data',(s)=> {
             _session.command('UPDATE ParentOfSequence set Sequence = :seq, Count = Count + 1 \

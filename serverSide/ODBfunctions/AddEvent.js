@@ -35,6 +35,16 @@
     return obj;
   }                       
   
+  function retry(command){
+  	try {
+      eval(command) 
+    }
+    catch(err){
+      print('Retrying ' + command)
+      retry(command)
+    }
+  }
+
   var logline = unescape(jsondata)
   var e = rewriteProperties(JSON.parse(logline)); 
   
@@ -112,7 +122,7 @@
                 print()
               	print(Date() + " EXE first-sighting of " + e['Image'])
                 print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
-              	db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))
+              	retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
                 print()
             }
       		// CommandLine tracking
@@ -125,10 +135,8 @@
       		if(u[0].getProperty('Count') == 1) {
             	 print()
                  print(Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
-                 print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
-              	 db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))
-                 print()
-              	 db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)
+              	 retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+              	 retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")
             }
       
       		// Check Process Type 
@@ -136,12 +144,11 @@
       		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
                && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
             	print('ProcessType: AfterExplorerBackground or AfterExplorerForeground')
-              	// add pendingType edge
+              	retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
             }
       		else {
               	print('ProcessType: BeforeExplorer')
-              	// update HUPC ProcessType property
-              	db.command('UPDATE ? SET ProcessType = "BeforeExplorer"', HUPC_rid)
+              	retry("db.command('UPDATE ? SET ProcessType = ?', HUPC_rid,'BeforeExplorer')")
             }
       		print('')
             break;
@@ -159,8 +166,7 @@
           if(u[0].getProperty('HashCount') == 1) {
               var r = db.command(stmt); // insert the ImageLoad log line
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
-              db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))
-              // file any FileCreate associated with this sighting...
+              retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
               stmt = 'CREATE EDGE UsedAsImage FROM \
                      (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
               try{
@@ -169,7 +175,7 @@
               catch(err){
                 //print(err)
               }
-          }
+          }//*/
       	  break;
       
     case "DriverLoad": //ID6
@@ -178,18 +184,15 @@
                        e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
           
           if(u[0].getProperty('Count') == 1) {
-	        
             	print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
-            	db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))
-            
-            	// FileCreate-[UsedAsDriver:TargetFilename=ImageLoaded]->DriverLoad
-                stmt = 'CREATE EDGE UsedAsDriver FROM \
+            	retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
+            	stmt = 'CREATE EDGE UsedAsDriver FROM \
                         (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
                 try{
                     db.command(stmt,e['Hostname'],e['ImageLoaded'].toLowerCase() ,r[0].getProperty('@rid'))
                 }
                 catch(err){
-                  //print(err)
+                  print('Did not find FileCreate for First Sighted Sys ' + r[0].getProperty('@rid'))
                 }
           }
       	  break;
