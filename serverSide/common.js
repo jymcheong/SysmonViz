@@ -6,7 +6,6 @@ var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
 
 var _session, _client, _handle;
 var _cachedir = __dirname + '/cache';
-
 var _host = '172.30.1.178';
 var _port = 2424;
 var _dbname = 'DataFusion';
@@ -20,6 +19,23 @@ if (!fs.existsSync(_cachedir)){
 var _cacheProcessCreateRID = _cachedir + '/ProcessCreateRID'
 if (!fs.existsSync(_cacheProcessCreateRID)){
     fs.mkdirSync(_cacheProcessCreateRID);
+}
+
+function startLiveQuery(stm){
+    const OrientDBClient = require("orientjs").OrientDBClient
+    OrientDBClient.connect({ host: _host ,port: _port})
+    .then(client => {
+        _client = client; //used in cleanup.js
+        client.session({ name: _dbname, username: _user, password: _pass })
+        .then(session => {
+            console.log('session opened')
+            _session = session //used in cleanup.js
+            _handle = session.liveQuery(stm) //used in cleanup.js
+            .on("data", data => {
+                if(data['operation'] == 1) eventHandler(data['data'])
+            })
+        })
+    })
 }
 
 process.stdin.resume(); //so the program will not close instantly

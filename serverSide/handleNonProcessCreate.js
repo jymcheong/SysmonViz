@@ -1,20 +1,7 @@
 const fs = require("fs")
 eval(fs.readFileSync(__dirname + '/common.js')+'');
 
-const OrientDBClient = require("orientjs").OrientDBClient
-OrientDBClient.connect({ host: _host,port: _port})
-.then(client => {
-    _client = client; //used in cleanup.js
-    client.session({ name: _dbname, username: _user, password: _pass })
-    .then(session => {
-        console.log('session opened')
-        _session = session //used in cleanup.js
-        _handle = session.liveQuery("select from V") //used in cleanup.js
-        .on("data", data => {
-            if(data['operation'] == 1) findProcessCreate(data['data'])
-        })
-    })
-})
+startLiveQuery("select from V")
 
 function linkNewEvent(classname, sourceRID, targetRID){
         //console.log(classname + ' link ' + sourceRID + ' to ' + targetRID)
@@ -30,7 +17,7 @@ function linkNewEvent(classname, sourceRID, targetRID){
         // if ProcessTerminate, clean up file cache....
 }
 
-function findProcessCreate(newEvent) {
+function eventHandler(newEvent) {
     if(newEvent['Image'] == 'System') return
     switch(newEvent['@class']){
         case "ProcessTerminate"://ID5: ProcessCreate-[Terminated]->ProcessTerminate     	

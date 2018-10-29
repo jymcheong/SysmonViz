@@ -130,38 +130,68 @@
                  print()
               	 db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)
             }
-      		// select from TypeA_id_cache
+      
+      		// Check Process Type 
       		var t = db.query('select from TypeA_id_cache')
-            //print('smss_id ' + t[0].getProperty('smss_id'))
-            //print('explorer_id ' + t[0].getProperty('explorer_id'))
-      		//print('current_id ' + current_id)
       		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
                && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
-            	print('ProcessType: BackgroundAfterExplorer or ForegroundAfterExplorer')
+            	print('ProcessType: AfterExplorerBackground or AfterExplorerForeground')
               	// add pendingType edge
             }
       		else {
               	print('ProcessType: BeforeExplorer')
               	// update HUPC ProcessType property
+              	db.command('UPDATE ? SET ProcessType = "BeforeExplorer"', HUPC_rid)
             }
       		print('')
             break;
       
-    case "DriverLoad": //ID6
-          // FileCreate-[UsedAsDriver:TargetFilename=ImageLoaded]->DriverLoad
-          stmt = 'CREATE EDGE UsedAsDriver FROM \
-                  (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
-          try{
-              db.command(stmt,e['Hostname'],e['ImageLoaded'].toLowerCase() ,r[0].getProperty('@rid'))
-          }
-          catch(err){
-            //print(err)
-          }
+    case "ImageLoad": 
+      	  // track Full-path vs Hashes
       	  var u = db.command('UPDATE ImageLoadedHashes set ImageLoaded = ?, Hashes = ?, Count = Count + 1 \
 						UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
                        e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
-          if(u[0].getProperty('Count') == 1)
-	            print(Date() + " First Sighting of " + e['ImageLoaded'])
+          
+          // track ONLY Hashes
+          u = db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
+						UPSERT RETURN AFTER @rid, HashCount WHERE Hashes = ?',e['Hashes'])
+          
+          if(u[0].getProperty('HashCount') == 1) {
+              var r = db.command(stmt); // insert the ImageLoad log line
+              print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
+              db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))
+              // file any FileCreate associated with this sighting...
+              stmt = 'CREATE EDGE UsedAsImage FROM \
+                     (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
+              try{
+                  db.command(stmt,e['Hostname'],e['ImageLoaded'].toLowerCase() ,r[0].getProperty('@rid'))
+              }
+              catch(err){
+                //print(err)
+              }
+          }
+      	  break;
+      
+    case "DriverLoad": //ID6
+      	  var u = db.command('UPDATE ImageLoadedHashes set ImageLoaded = ?, Hashes = ?, Count = Count + 1 \
+						UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
+                       e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
+          
+          if(u[0].getProperty('Count') == 1) {
+	        
+            	print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
+            	db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))
+            
+            	// FileCreate-[UsedAsDriver:TargetFilename=ImageLoaded]->DriverLoad
+                stmt = 'CREATE EDGE UsedAsDriver FROM \
+                        (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
+                try{
+                    db.command(stmt,e['Hostname'],e['ImageLoaded'].toLowerCase() ,r[0].getProperty('@rid'))
+                }
+                catch(err){
+                  //print(err)
+                }
+          }
       	  break;
 
 
@@ -204,6 +234,7 @@
               catch(err){
                 db.command('INSERT INTO Orphans SET classname = ?, rid = ?','SwitchedFrom', r[0].getProperty('@rid'))
               }
+              // if ProcessCreate has PendingType, update it with Type = AfterExplorerForeground
               stmt = 'CREATE EDGE SwitchedTo FROM ? TO \
                       (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc) \
                        WHERE Hostname = ? LIMIT 1)'

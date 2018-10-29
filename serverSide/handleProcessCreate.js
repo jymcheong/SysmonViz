@@ -1,22 +1,10 @@
 const fs = require("fs")
 eval(fs.readFileSync(__dirname + '/common.js')+'');
 
-const OrientDBClient = require("orientjs").OrientDBClient
-OrientDBClient.connect({ host: _host ,port: _port})
-.then(client => {
-    _client = client; //used in cleanup.js
-    client.session({ name: _dbname, username: _user, password: _pass })
-    .then(session => {
-        console.log('session opened')
-        _session = session //used in cleanup.js
-        _handle = session.liveQuery("select from processcreate") //used in cleanup.js
-        .on("data", data => {
-            if(data['operation'] == 1) findParent(data['data'])
-        })
-    })
-})
+startLiveQuery("select from processcreate")
 
-function findParent(newpc) {
+// a fix function name that is used within startLiveQuery
+function eventHandler(newpc) {
     // write new @rid to cache folder
     fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { if(err) console.log(err) });
     // find parent @rid in cache
