@@ -36,7 +36,7 @@ function connectParentOf(sourceRID, targetRID) {
         _session.command('Update ' + targetRID + 'SET ToBeProcessed = false')
         .on('error',(err)=> {
             console.log(err)
-            console.log('Retrying update...')
+            console.log('Retrying update within connectParentOf...')
             _session.command('Update ' + targetRID + 'SET ToBeProcessed = false')
         })
         .on('data',(data)=> {

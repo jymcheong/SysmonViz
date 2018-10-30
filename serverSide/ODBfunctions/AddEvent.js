@@ -229,19 +229,20 @@
           //  Linked to ProcessId except Foreground Transition which has FromProcessId & ToProcessId
           if(e['Action']=='Foreground Transition'){
               stmt = 'CREATE EDGE SwitchedFrom FROM \
-                      (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc) \
-						WHERE Hostname = ? LIMIT 1) TO ?'
+                      (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc Limit 1) \
+						WHERE Hostname = ?) TO ?'
               try{
                 db.command(stmt,e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))
               }
               catch(err){
                 db.command('INSERT INTO Orphans SET classname = ?, rid = ?','SwitchedFrom', r[0].getProperty('@rid'))
               }
-              // if ProcessCreate has PendingType, update it with Type = AfterExplorerForeground
+              
               stmt = 'CREATE EDGE SwitchedTo FROM ? TO \
-                      (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc) \
-                       WHERE Hostname = ? LIMIT 1)'
+                      (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc  LIMIT 1) \
+                       WHERE Hostname = ?)'
               try{
+                //print('Linking SwitchedTo for ' + e['ToProcessId'])
                 db.command(stmt,r[0].getProperty('@rid'),e['ToProcessId'],e['Hostname'])
               }
               catch(err){
@@ -249,15 +250,30 @@
               }
           }
           else { // other UAT actions
-            stmt = 'CREATE EDGE ActedOn FROM ? TO \
-                      (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? \
-                      Order By id Desc LIMIT 1)'
-            try{
-              db.command(stmt,r[0].getProperty('@rid'),e['Hostname'],e['ProcessId'])
-            }
-            catch(err){
-              db.command('INSERT INTO Orphans SET classname = ?, rid = ?','ActedOn',r[0].getProperty('@rid'))
-            }
+              var pc = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc LIMIT 1) \
+								 WHERE Hostname = ?',e['ProcessId'],e['Hostname'])
+              if(e['Action'].indexOf('Click') > 0 || e['Action'].indexOf('Press')) {
+                  var checkPendingType = '' + pc[0]
+                  if(checkPendingType.indexOf('in_PendingType:[]') < 0 && checkPendingType.indexOf('in_PendingType') > 0){
+                        var hupc = db.query('SELECT expand(out) FROM ?',pc[0].getProperty('in_PendingType'))
+                        if(hupc[0].getProperty('ProcessType') === null) {
+                            db.command('UPDATE ? SET ProcessType = "AfterExplorerForeground"', hupc[0].getProperty('@rid'))
+                            print("update to AfterExplorerForeground for " + hupc[0].getProperty('@rid'))
+                            print('ProcessCreate is '+ pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('Image'))
+                            print('Removing ' + pc[0].getProperty('in_PendingType'))
+                            print('')
+                        }
+                        db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))
+                  }
+              }
+              if(pc.length == 0) return 
+              try{
+                //print('Linking ActedOn to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
+                db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))
+              }
+              catch(err){
+                db.command('INSERT INTO Orphans SET classname = ?, rid = ?','ActedOn',r[0].getProperty('@rid'))
+              }
           }
           break;     
   }
