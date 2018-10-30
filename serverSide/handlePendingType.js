@@ -11,7 +11,11 @@ function checkUserActions(pendingEvent) {
     _session.query('SELECT FROM ' + pendingEvent['in'])
     .on('data',(results)=> {
         console.log(results)
-        if(results['in_ActedOn'])
-            console.log(results['in_ActedOn'] )
+        if(results['in_ActedOn']) return
+        _session.command('UPDATE ' + pendingEvent['out'] + ' SET ProcessType = "AfterExplorerBackground"')
+        .on('data',(hupc)=> {
+            console.log('Updated HUPC ProcessType ' + pendingEvent['out'])
+            _session.command('DELETE EDGE ' + pendingEvent['@rid'])
+        })
     })
 }

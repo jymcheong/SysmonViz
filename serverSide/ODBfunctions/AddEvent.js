@@ -143,7 +143,7 @@
       		var t = db.query('select from TypeA_id_cache')
       		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
                && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
-            	print('ProcessType: AfterExplorerBackground or AfterExplorerForeground')
+            	print('Created PendingType for ' + r[0].getProperty('@rid'))
               	retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
             }
       		else {
@@ -263,12 +263,15 @@
                             print('Removing ' + pc[0].getProperty('in_PendingType'))
                             print('')
                         }
+                    	else {
+                          print('Existing ProcessType ' + hupc[0].getProperty('ProcessType'))
+                        }
                         db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))
                   }
               }
               if(pc.length == 0) return 
               try{
-                //print('Linking ActedOn to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
+                print('Linking ActedOn to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
                 db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))
               }
               catch(err){
