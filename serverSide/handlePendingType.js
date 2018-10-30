@@ -9,12 +9,11 @@ function eventHandler(newEvent) {
 
 function checkUserActions(pendingEvent) {
     _session.query('SELECT FROM ' + pendingEvent['in'])
-    .on('data',(results)=> {        
-        if(results['in_ActedOn']) return
-        console.log(results)
+    .on('data',(result)=> {        
+        if(result['in_ActedOn']) return
         _session.command('UPDATE ' + pendingEvent['out'] + ' SET ProcessType = "AfterExplorerBackground"')
         .on('data',(hupc)=> {
-            console.log('Updated HUPC ProcessType ' + pendingEvent['out'])
+            console.log('Updated HUPC ProcessType ' + pendingEvent['out'] + ' ' + result['CommandLine'])
             _session.command('DELETE EDGE ' + pendingEvent['@rid'])
         })
     })
