@@ -25,9 +25,6 @@ function eventHandler(newEvent) {
     if(newEvent['Image'] == 'System') return
     switch(newEvent['@class']){
         case "ImageLoad":
-            console.log('Ignoring ImageLoad')
-            break;
-
         case "ProcessTerminate"://ID5: ProcessCreate-[Terminated]->ProcessTerminate     	
         case "PipeCreated":	    //ID17: ProcessCreate-[CreatedPipe]->PipeCreated	
         case "PipeConnected":   //ID18: ProcessCreate-[ConnectedPipe]->PipeConnected

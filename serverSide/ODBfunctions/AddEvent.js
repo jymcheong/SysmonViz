@@ -168,9 +168,9 @@
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
               retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
               stmt = 'CREATE EDGE UsedAsImage FROM \
-                     (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
+                     (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?)) TO ?'
               try{
-                  db.command(stmt,e['Hostname'],e['ImageLoaded'].toLowerCase() ,r[0].getProperty('@rid'))
+                  db.command(stmt,e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))
               }
               catch(err){
                 //print(err)
@@ -187,9 +187,9 @@
             	print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
             	retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
             	stmt = 'CREATE EDGE UsedAsDriver FROM \
-                        (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename.toLowerCase() = ?) TO ?'
+                        (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?)) TO ?'
                 try{
-                    db.command(stmt,e['Hostname'],e['ImageLoaded'].toLowerCase() ,r[0].getProperty('@rid'))
+                    db.command(stmt,e['Hostname'],r[0].getProperty('@rid'),r[0].getProperty('@rid'))
                 }
                 catch(err){
                   print('Did not find FileCreate for First Sighted Sys ' + r[0].getProperty('@rid'))
@@ -271,7 +271,7 @@
               }
               if(pc.length == 0) return 
               try{
-                print('Linking ActedOn to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
+                print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
                 db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))
               }
               catch(err){

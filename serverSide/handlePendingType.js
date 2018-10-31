@@ -10,7 +10,7 @@ function eventHandler(newEvent) {
 function checkUserActions(pendingEvent) {
     _session.query('SELECT FROM ' + pendingEvent['in'])
     .on('data',(result)=> {        
-        if(result['in_ActedOn']) return
+        if(result['in_ActedOn']) return // it's AfterExplorerForeground, ignore
         _session.command('UPDATE ' + pendingEvent['out'] + ' SET ProcessType = "AfterExplorerBackground"')
         .on('data',(hupc)=> {
             console.log('Updated HUPC ProcessType ' + pendingEvent['out'] + ' ' + result['CommandLine'])
