@@ -35,7 +35,7 @@ function checkUserActions(pendingEvent) {
     _session.query('SELECT FROM ' + pendingEvent['in']) // a ProcessCreate
     .on('data',(result)=> {        
         if(result['in_ActedOn']) return // it's AfterExplorerForeground, ignore
-        console.log('Updating ProcessType for ' + result['CommandLine'])
+        console.log('Updating ProcessType for ' + result['CommandLine'] + ' ' + result['@rid'])
         updateHUPCProcessType(pendingEvent['out'],pendingEvent['@rid'])
         updateProcessCreateProcessType(result['@rid'])
     })
