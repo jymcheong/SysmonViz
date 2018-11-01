@@ -39,16 +39,14 @@ function startLiveQuery(stm){
 }
 
 function updateToBeProcessed(targetRID){
-    try{
-        _session.command('Update ' + targetRID + 'SET ToBeProcessed = false')
-        .on('data',(data)=> {
-            console.log('updated ToBeProcessed to false for ' + targetRID)
-        }) 
-    }
-    catch(err) {
-        console.log('Retrying updating ToBeProcessed ' + targetRID)
+    _session.command('Update ' + targetRID + 'SET ToBeProcessed = false')
+    .on('data',(data)=> {
+        console.log('updated ToBeProcessed to false for ' + targetRID)
+    })
+    .on('error',(err)=> {
+        console.log('Retrying ToBeProcessed update... for '+ targetRID)
         updateToBeProcessed(targetRID)
-    }
+    })
 }
 
 process.stdin.resume(); //so the program will not close instantly
