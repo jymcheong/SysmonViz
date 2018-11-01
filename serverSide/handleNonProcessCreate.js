@@ -10,7 +10,8 @@ function linkNewEvent(classname, sourceRID, targetRID){
         _session.command(sql)
         .on("data", data => {
             if(classname == 'FileCreate') console.log('Connecting ' + _edgeLookup[classname] + ' FROM ' + sourceRID + ' TO ' + targetRID)
-            _session.command('UPDATE '+ targetRID + ' SET ToBeProcessed = false')
+            //_session.command('UPDATE '+ targetRID + ' SET ToBeProcessed = false')
+            updateToBeProcessed(targetRID)
         })
         .on('error',(err)=> {
             console.log(err)
