@@ -46,7 +46,12 @@
   }
 
   var logline = unescape(jsondata)
-  var e = rewriteProperties(JSON.parse(logline)); 
+  try {
+    var e = rewriteProperties(JSON.parse(logline)); 
+  }
+  catch(err) {
+      print(Date() + ' Offending line ' + logline);
+  }
   
   e['ToBeProcessed'] = true
   classname = 'WinEvent'
@@ -70,7 +75,13 @@
   if(e["SourceName"] == "DataFuseUserActions"){
       classname = 'UserActionTracking'
       delete e['ProcessID']
-      uat = JSON.parse(e['Message'])
+      try {
+        var uat = JSON.parse(e['Message'])
+      }
+      catch(err) {
+        print(Date() + ' Offending DataFuseUserActions ' + e['Message'])
+        print(logline)
+      }
       for(var k in uat){
           e[k] = uat[k]
       }
@@ -80,7 +91,12 @@
   if(e["SourceName"] == "DataFuseNetwork"){
       classname = 'NetworkDetails'
       delete e['ProcessID']
-      uat = JSON.parse(e['Message'])
+      try {
+      	var uat = JSON.parse(e['Message'])
+      }
+      catch(err){
+      	print(Date() + ' Offending DataFuseNetwork ' + e['Message'])
+      }
       for(var k in uat){
           e[k] = uat[k]
       }
@@ -91,8 +107,8 @@
   var id = (new Date())*1
   jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
   var stmt = 'INSERT INTO '+ classname + ' CONTENT ' + jsonstring
-  if(classname != 'ImageLoad') var r = db.command(stmt);
-  
+  if(classname != 'ImageLoad' || classname != 'NetworkConnect' ) var r = db.command(stmt);
+  //print(Date() + classname);
   switch(classname) {
     case "ProcessCreate":
       		var current_id = r[0].getProperty('id')
@@ -124,6 +140,7 @@
                 print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
               	retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
                 print()
+                // find any FileCreate that can be link to this sighting
             }
       		// CommandLine tracking
       		u = db.command('UPDATE HostUserPrivilegeCommandLine set Count = Count + 1 \
@@ -149,6 +166,7 @@
       		else {
               	print('ProcessType: BeforeExplorer')
               	retry("db.command('UPDATE ? SET ProcessType = ?', HUPC_rid,'BeforeExplorer')")
+              	retry("db.command('UPDATE ? SET ProcessType = ?', r[0].getProperty('@rid'),'BeforeExplorer')")
             }
       		print('')
             break;
@@ -168,9 +186,11 @@
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
               retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
               stmt = 'CREATE EDGE UsedAsImage FROM \
-                     (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?)) TO ?'
+                     (SELECT FROM FileCreate WHERE Hostname = ? AND \
+					  TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?'
               try{
                   db.command(stmt,e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))
+                  print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))
               }
               catch(err){
                 //print(err)
@@ -187,7 +207,7 @@
             	print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
             	retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
             	stmt = 'CREATE EDGE UsedAsDriver FROM \
-                        (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?)) TO ?'
+                        (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?'
                 try{
                     db.command(stmt,e['Hostname'],r[0].getProperty('@rid'),r[0].getProperty('@rid'))
                 }
@@ -226,38 +246,36 @@
           break;
 
     case 'UserActionTracking':
-          //  Linked to ProcessId except Foreground Transition which has FromProcessId & ToProcessId
           if(e['Action']=='Foreground Transition'){
-              stmt = 'CREATE EDGE SwitchedFrom FROM \
-                      (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc Limit 1) \
-						WHERE Hostname = ?) TO ?'
               try{
-                db.command(stmt,e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))
+                db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate \
+						   WHERE ProcessId = ? AND Hostname = ? Order By id Desc Limit 1) TO ?',
+                           e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))
               }
               catch(err){
                 db.command('INSERT INTO Orphans SET classname = ?, rid = ?','SwitchedFrom', r[0].getProperty('@rid'))
               }
               
-              stmt = 'CREATE EDGE SwitchedTo FROM ? TO \
-                      (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc  LIMIT 1) \
-                       WHERE Hostname = ?)'
               try{
                 //print('Linking SwitchedTo for ' + e['ToProcessId'])
-                db.command(stmt,r[0].getProperty('@rid'),e['ToProcessId'],e['Hostname'])
+                db.command('CREATE EDGE SwitchedTo FROM ? TO (SELECT FROM ProcessCreate \
+						  WHERE ProcessId = ? AND Hostname = ? Order By id Desc  LIMIT 1)',r[0].getProperty('@rid'),e['ToProcessId'],e['Hostname'])
               }
               catch(err){
                 db.command('INSERT INTO Orphans SET classname = ?, rid = ?','SwitchedTo',r[0].getProperty('@rid'))
               }
           }
           else { // other UAT actions
-              var pc = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? Order By id Desc LIMIT 1) \
-								 WHERE Hostname = ?',e['ProcessId'],e['Hostname'])
+              var pc = db.query('SELECT FROM ProcessCreate \
+					   WHERE ProcessId = ? AND Hostname = ? Order By id Desc LIMIT 1',e['ProcessId'],e['Hostname'])
+              if(pc.length == 0) return //means somehow ProcessCreate was missing.
+            
               if(e['Action'].indexOf('Click') > 0 || e['Action'].indexOf('Press')) {
                   var checkPendingType = '' + pc[0]
                   if(checkPendingType.indexOf('in_PendingType:[]') < 0 && checkPendingType.indexOf('in_PendingType') > 0){
                         var hupc = db.query('SELECT expand(out) FROM ?',pc[0].getProperty('in_PendingType'))
                         if(hupc[0].getProperty('ProcessType') === null) {
-                            db.command('UPDATE ? SET ProcessType = "AfterExplorerForeground"', hupc[0].getProperty('@rid'))
+                            retry("db.command('UPDATE ? SET ProcessType = ?', hupc[0].getProperty('@rid'),'AfterExplorerForeground')")
                             print("update to AfterExplorerForeground for " + hupc[0].getProperty('@rid'))
                             print('ProcessCreate is '+ pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('Image'))
                             print('Removing ' + pc[0].getProperty('in_PendingType'))
@@ -268,8 +286,8 @@
                         }
                         db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))
                   }
+                  retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
               }
-              if(pc.length == 0) return 
               try{
                 print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
                 db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))
