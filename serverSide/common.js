@@ -12,7 +12,7 @@ var _dbname = 'DataFusion';
 var _user = 'root';
 var _pass = 'Password1234'
 
-require('console-stamp')(console, '[HH:MM:ss.l]')
+require('console-stamp')(console, 'HH:MM:ss.l')
 
 if (!fs.existsSync(_cachedir)){
     fs.mkdirSync(_cachedir);
