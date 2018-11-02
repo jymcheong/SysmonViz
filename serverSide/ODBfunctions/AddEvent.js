@@ -107,7 +107,7 @@
   var id = (new Date())*1
   jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
   var stmt = 'INSERT INTO '+ classname + ' CONTENT ' + jsonstring
-  if(classname != 'ImageLoad' || classname != 'NetworkConnect' ) var r = db.command(stmt);
+  if(classname != 'ImageLoad') var r = db.command(stmt);
   //print(Date() + classname);
   switch(classname) {
     case "ProcessCreate":
