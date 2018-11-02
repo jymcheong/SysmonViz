@@ -246,6 +246,7 @@
           break;
 
     case 'UserActionTracking':
+          //print(Date() + ' Start UAT Processing')
           if(e['Action']=='Foreground Transition'){
               try{
                 db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate \
@@ -267,9 +268,9 @@
           }
           else { // other UAT actions
               var pc = db.query('SELECT FROM ProcessCreate \
-					   WHERE ProcessId = ? AND Hostname = ? Order By id Desc LIMIT 1',e['ProcessId'],e['Hostname'])
+					   WHERE Hostname = ? AND ProcessId = ? Order By id Desc LIMIT 1',e['Hostname'],e['ProcessId'])
               if(pc.length == 0) return //means somehow ProcessCreate was missing.
-            
+              //print(Date() + '  UAT found PC')
               if(e['Action'].indexOf('Click') > 0 || e['Action'].indexOf('Press')) {
                   var checkPendingType = '' + pc[0]
                   if(checkPendingType.indexOf('in_PendingType:[]') < 0 && checkPendingType.indexOf('in_PendingType') > 0){
@@ -287,6 +288,7 @@
                         db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))
                   }
                   retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
+                  //print(Date() + ' End UAT update PC')
               }
               try{
                 print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
@@ -296,6 +298,7 @@
                 db.command('INSERT INTO Orphans SET classname = ?, rid = ?','ActedOn',r[0].getProperty('@rid'))
               }
           }
+          //print(Date() + ' End UAT Processing')
           break;     
   }
 
