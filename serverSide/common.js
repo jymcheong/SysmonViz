@@ -43,7 +43,7 @@ function startLiveQuery(stm){
 function updateToBeProcessed(targetRID){
     _session.command('Update ' + targetRID + 'SET ToBeProcessed = false')
     .on('data',(data)=> {
-        console.log('updated ToBeProcessed to false for ' + targetRID)
+        //console.log('updated ToBeProcessed to false for ' + targetRID)
     })
     .on('error',(err)=> {
         console.log('Retrying ToBeProcessed update... for '+ targetRID)
