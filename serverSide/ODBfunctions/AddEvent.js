@@ -162,8 +162,8 @@
       		var t = db.query('select from TypeA_id_cache')
       		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
                && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
-            	print('Created PendingType for ' + r[0].getProperty('@rid'))
-              	retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
+                retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
+                print('Created PendingType for ' + r[0].getProperty('@rid'))
             }
       		else {
               	print('ProcessType: BeforeExplorer')

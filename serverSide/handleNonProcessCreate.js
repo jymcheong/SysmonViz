@@ -14,7 +14,8 @@ function linkNewEvent(classname, sourceRID, targetRID){
             updateToBeProcessed(targetRID)
         })
         .on('error',(err)=> {
-            console.log(err)
+            console.log('retrying linkNewEvent... targetRID:' + targetRID)
+            linkNewEvent(classname, sourceRID, targetRID)
         })
 }
 
