@@ -12,6 +12,7 @@
                     'FileCreateStreamHash':'CreatedFileStream', 'RegistryEvent':'AccessedRegistry',
                     'NetworkConnect':'ConnectedTo', 'ImageLoad':'LoadedImage'}
   
+  // EventId to Classname
   var eventIdLookup = {1:'ProcessCreate', 2:'FileCreateTime', 3:'NetworkConnect', 
                         4:'SysmonStatus', 5:'ProcessTerminate',6:'DriverLoad', 
                         7:'ImageLoad', 8:'CreateRemoteThread', 9:'RawAccessRead', 
@@ -51,6 +52,7 @@
   }
   catch(err) {
       print(Date() + ' Offending line ' + logline);
+      return
   }
   
   e['ToBeProcessed'] = true
@@ -185,16 +187,8 @@
               var r = db.command(stmt); // insert the ImageLoad log line
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
               retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-              stmt = 'CREATE EDGE UsedAsImage FROM \
-                     (SELECT FROM FileCreate WHERE Hostname = ? AND \
-					  TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?'
-              try{
-                  db.command(stmt,e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))
-                  print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))
-              }
-              catch(err){
-                //print(err)
-              }
+              retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
+              print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))              
           }//*/
       	  break;
       
@@ -206,14 +200,7 @@
           if(u[0].getProperty('Count') == 1) {
             	print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
             	retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-            	stmt = 'CREATE EDGE UsedAsDriver FROM \
-                        (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?'
-                try{
-                    db.command(stmt,e['Hostname'],r[0].getProperty('@rid'),r[0].getProperty('@rid'))
-                }
-                catch(err){
-                  print('Did not find FileCreate for First Sighted Sys ' + r[0].getProperty('@rid'))
-                }
+            	retry("db.command('CREATE EDGE UsedAsDriver FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'],r[0].getProperty('@rid'),r[0].getProperty('@rid'))")
           }
       	  break;
 
