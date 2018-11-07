@@ -57,7 +57,7 @@ function eventHandler(newEvent) {
                     console.log(err)
                     return
                 } 
-                console.log(filepath + ' was deleted');
+                //console.log(filepath + ' was deleted');
               });
         }
     }
