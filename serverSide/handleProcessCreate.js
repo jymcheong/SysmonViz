@@ -10,22 +10,21 @@ var _processCreateQ = []
 function eventHandler(newpc) {
     var rid = '' + newpc['@rid']
     _mapProcessCreate.set(newpc['Hostname'] + newpc['ProcessGuid'], rid)
-    //console.log('Wrote map ' + _mapProcessCreate.get(newpc['Hostname'] + newpc['ProcessGuid']) + ' for ' + newpc['Image'])
-    fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { if(err) console.log(err) });
+    fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { 
+        if(err) { console.log(err); return; } 
+    });
     if(newpc['ParentImage'] != 'System') {
         _processCreateQ.push(newpc)               
     }
 }
 
-setInterval(function(){ processQueue()},500);
+setInterval(function(){ processQueue()},1500);
 
 function processQueue(){
-    if(_processCreateQ.length == 0){ return }
-    console.log('Queue length = ' + _processCreateQ.length)
+    if(_processCreateQ.length == 0){ return; }
     var newpc = _processCreateQ[0];
     var parentRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
     if(parentRID) {
-        //console.log('Linking ' + parentRID + ' TO ' + newpc['@rid'])
         connectParentOf(parentRID, newpc['@rid'])
         _processCreateQ.shift()
     }
@@ -37,12 +36,11 @@ function processQueue(){
         .then((data)=> {
             if(data.length > 0) {
                 console.log('Found parent RID from DB for ' + newpc['Image'])
-                //connectParentOf(data[0]['@rid'],newpc['@rid'])
                 _mapProcessCreate.set(newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'])
-                fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], data[0]['@rid'], function(err) { if(err) console.log(err) });
+                fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'], function(err) { if(err) console.log(err) });
             }
             else {
-                console.log('Cannot find parent for '+ newpc['Image'])
+                console.log('Cannot find ' + newpc['ParentImage'] + ' for '+ newpc['Image'] + ' on ' + newpc['Hostname'])
                 _processCreateQ.shift()
             }
         });
