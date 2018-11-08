@@ -4,66 +4,62 @@ eval(fs.readFileSync(__dirname + '/common.js')+'');
 startLiveQuery("select from processcreate")
 
 var _mapProcessCreate = new Map()
+var _processCreateQ = []
 
 // a fix function name that is used within startLiveQuery
 function eventHandler(newpc) {
     var rid = '' + newpc['@rid']
     _mapProcessCreate.set(newpc['Hostname'] + newpc['ProcessGuid'], rid)
-    console.log('Wrote map ' + _mapProcessCreate.get(newpc['Hostname'] + newpc['ProcessGuid']))
-    fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { 
-        if(err) console.log(err) 
-        //console.log('Wrote to cache ' + newpc['Image'])
-    });
+    //console.log('Wrote map ' + _mapProcessCreate.get(newpc['Hostname'] + newpc['ProcessGuid']) + ' for ' + newpc['Image'])
+    fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { if(err) console.log(err) });
     if(newpc['ParentImage'] != 'System') {
-        //console.log('Handling ' + newpc['Image'])
-        var sourceRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
-        if(sourceRID) {
-            connectParentOfDirect(sourceRID,newpc['@rid'])
-        }
-        else {
-            RetryConnectParentOf(newpc, 1);  
-        }
-        /*
-        fs.readFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], function(err, sourceRID){
-            if(err) { // not in cache, find in database
-                //console.log('Cannot find in cache... ' + newpc['Hostname'] + newpc['ParentProcessGuid'])
-                RetryConnectParentOf(newpc, 0);                
-            }
-            else {
-                //console.log('Found in cache ' + sourceRID)
-                connectParentOfDirect(sourceRID,newpc['@rid'])
-            }
-        }) */      
+        _processCreateQ.push(newpc)               
     }
 }
 
-function connectParentOfDirect(sourceRID, targetRID) {    
+setInterval(function(){ processQueue()},500);
+
+function processQueue(){
+    if(_processCreateQ.length == 0){ return }
+    console.log('Queue length = ' + _processCreateQ.length)
+    var newpc = _processCreateQ[0];
+    var parentRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
+    if(parentRID) {
+        //console.log('Linking ' + parentRID + ' TO ' + newpc['@rid'])
+        connectParentOf(parentRID, newpc['@rid'])
+        _processCreateQ.shift()
+    }
+    else {
+        console.log('Searching database for parent of ' + newpc['Image'])
+        _session.query("select @rid from (select from processcreate where ProcessGuid = :guid) where Hostname = :hostname", 
+        { params : {guid: newpc['ParentProcessGuid'], hostname: newpc['Hostname']}})
+        .all()
+        .then((data)=> {
+            if(data.length > 0) {
+                console.log('Found parent RID from DB for ' + newpc['Image'])
+                //connectParentOf(data[0]['@rid'],newpc['@rid'])
+                _mapProcessCreate.set(newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'])
+                fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], data[0]['@rid'], function(err) { if(err) console.log(err) });
+            }
+            else {
+                console.log('Cannot find parent for '+ newpc['Image'])
+                _processCreateQ.shift()
+            }
+        });
+    }
+}
+
+function connectParentOf(sourceRID, targetRID) {    
     //console.log('CREATE EDGE ParentOf FROM ' + sourceRID +' TO ' + targetRID)
-    _session.command('CREATE EDGE ParentOf FROM ' + sourceRID +' TO ' + targetRID)    
+    _session.command('CREATE EDGE ParentOf FROM ' + sourceRID +'  TO ' + targetRID)    
     .on('data',(results)=> {
         updateToBeProcessed(targetRID)
         updateParentOfSequence(targetRID)
     }) 
     .on('error',(err)=> {
         console.log('Retrying connectParentOfDirect for ' + sourceRID + ' to ' + targetRID)
-        connectParentOfDirect(sourceRID, targetRID)
+        connectParentOf(sourceRID, targetRID)
     })   
-}
-
-function RetryConnectParentOf(newpc, retryCount) {
-    console.log('RetryConnectParentOf ' + newpc['Image'] + ':' + retryCount)
-    if(retryCount > 3) {
-        console.log('Give up retrying for ' + newpc['@rid'] + ' ' + newpc['Hostname'] + ':' + newpc['Image'])
-        return
-    }
-    var sourceRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
-    if(sourceRID) {
-        connectParentOfDirect(sourceRID,newpc['@rid'])
-    }
-    else {
-        retryCount = retryCount + 1
-        RetryConnectParentOf(newpc, retryCount);  
-    }
 }
 
 
