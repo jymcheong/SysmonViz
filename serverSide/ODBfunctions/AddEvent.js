@@ -42,7 +42,7 @@
     }
     catch(err){
       var e = '' + err
-      if(e.indexOf('latest') > 0) {
+      if(e.indexOf('UPDATE') > 0) {
 	      print('Retrying ' + command)
     	  retry(command)
       }
@@ -196,8 +196,8 @@
           if(u[0].getProperty('HashCount') == 1) {
               var r = db.command(stmt); // insert the ImageLoad log line
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
-              db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))
-              db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))
+              retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
+              retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
               print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))              
           }//*/
       	  break;
@@ -214,56 +214,30 @@
           }
       	  break;
 
-
     case "CreateRemoteThread": //ID8
-      
-          // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
-          stmt = 'CREATE EDGE CreatedThread FROM \
-                  (SELECT FROM (SELECT FROM ProcessCreate \
-                   WHERE ProcessGuid = ? Order By id Desc LIMIT 1) WHERE Hostname = ?) TO ?'
-          try{
-             db.command(stmt,e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
-          }
-          catch(err){
-              db.command('INSERT INTO Orphans SET classname = ?, rid = ?, ProcessGuid = ?, \
-				     Hostname = ?', 'CreatedThread' ,r[0].getProperty('@rid'),e['SourceProcessGuid'],e['Hostname'])
-          }
-      
-          // CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
-          stmt = 'CREATE EDGE RemoteThreadFor FROM ? TO \
-				  (SELECT FROM (SELECT FROM ProcessCreate \
-				  WHERE ProcessGuid = ? Order By id Desc LIMIT 1) WHERE Hostname = ?)'
-          try{
-             db.command(stmt,r[0].getProperty('@rid'),e['TargetProcessGuid'],e['Hostname'])
-          }
-          catch(err){
-              db.command('INSERT INTO Orphans SET classname = ?, rid = ?, ProcessGuid = ?, \
-				     Hostname = ?', 'RemoteThreadFor' ,r[0].getProperty('@rid'),e['TargetProcessGuid'],e['Hostname'])
-          }
-          break;
+         print('handling CreateRemoteThread ' + e['TargetProcessGuid'] + ' ' + e['Hostname'])
+         // CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
+      	 var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?', e['TargetProcessGuid'],e['Hostname']);
+         if(target.length > 0) {
+            print('Found ' +  target[0].getProperty('@rid'));
+         	db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].getProperty('@rid'), target[0].getProperty('@rid'));
+         	print('Done RemoteThreadFor')
+         }      
+         // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
+		 db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?) TO ?',e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
+         print('Done CreatedThread')
+         break;
+           
 
     case 'UserActionTracking':
-         // break;
-      
+         break;
           //print(Date() + ' Start UAT Processing')
-          if(e['Action']=='Foreground Transition'){
-              try{
-                db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate \
-						   WHERE ProcessId = ? AND Hostname = ? Order By id Desc Limit 1) TO ?',
-                           e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))
-              }
-              catch(err){
-                db.command('INSERT INTO Orphans SET classname = ?, rid = ?','SwitchedFrom', r[0].getProperty('@rid'))
-              }
+          if(e['Action']=='Foreground Transition'){ 
+              retry("db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? AND Hostname = ? Order By id Desc Limit 1) TO ?',e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))")
               
-              try{
-                //print('Linking SwitchedTo for ' + e['ToProcessId'])
-                db.command('CREATE EDGE SwitchedTo FROM ? TO (SELECT FROM ProcessCreate \
-						  WHERE ProcessId = ? AND Hostname = ? Order By id Desc  LIMIT 1)',r[0].getProperty('@rid'),e['ToProcessId'],e['Hostname'])
-              }
-              catch(err){
-                db.command('INSERT INTO Orphans SET classname = ?, rid = ?','SwitchedTo',r[0].getProperty('@rid'))
-              }
+             //print('Linking SwitchedTo for ' + e['ToProcessId'])
+             retry("db.command('CREATE EDGE SwitchedTo FROM ? TO (SELECT FROM ProcessCreate WHERE ProcessId = ? AND Hostname = ? Order By id Desc  LIMIT 1)',r[0].getProperty('@rid'),e['ToProcessId'],e['Hostname'])")
+             
           }
           else { // other UAT actions
               var pc = db.query('SELECT FROM ProcessCreate \
@@ -289,15 +263,9 @@
                   retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
                   //print(Date() + ' End UAT update PC')
               }
-              try{
-                print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
-                db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))
-              }
-              catch(err){
-                db.command('INSERT INTO Orphans SET classname = ?, rid = ?','ActedOn',r[0].getProperty('@rid'))
-              }
-          }
-          //print(Date() + ' End UAT Processing')
+              print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
+              retry("db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))")
+          } 
           break;     
   }
 
