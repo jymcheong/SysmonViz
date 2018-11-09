@@ -10,6 +10,7 @@ var _processCreateQ = []
 function eventHandler(newpc) {
     var rid = '' + newpc['@rid']
     _mapProcessCreate.set(newpc['Hostname'] + newpc['ProcessGuid'], rid)
+    //console.log('Wrote to cache for ' + newpc['Image'])
     fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { 
         if(err) { console.log(err); return; } 
     });
@@ -18,7 +19,7 @@ function eventHandler(newpc) {
     }
 }
 
-setInterval(function(){ processQueue()},1500);
+setInterval(function(){ processQueue()},500);
 
 function processQueue(){
     if(_processCreateQ.length == 0){ return; }
@@ -40,8 +41,9 @@ function processQueue(){
                 fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'], function(err) { if(err) console.log(err) });
             }
             else {
-                console.log('Cannot find ' + newpc['ParentImage'] + ' for '+ newpc['Image'] + ' on ' + newpc['Hostname'])
+                console.log('Cannot find ' + newpc['ParentProcessGuid'] + ' for '+ newpc['Image'] + ' on ' + newpc['Hostname'])
                 _processCreateQ.shift()
+                fs.writeFile(_cacheProcessCreateRID + '/MISSING-' + newpc['Hostname'] + newpc['ParentProcessGuid'], '', function(err) { if(err) console.log(err) });
             }
         });
     }
@@ -67,7 +69,7 @@ function updateParentOfSequence(targetRID){
         _session.command('UPDATE ParentOfSequence set Sequence = :seq, Count = Count + 1 \
                          UPSERT RETURN AFTER @rid, Count WHERE Sequence = :seq',{ params : {seq: s['seq']}})
         .on('data',(c)=> {
-            console.log('Sequence count: '+ c['Count'] + ':' + s['seq'])
+            console.log('Sequence count:'+ c['Count'] + ':' + s['seq'])
             if(c['Count'] == 1) {
                 _session.command('CREATE EDGE SequenceSighted from ' + c['@rid'] + ' TO ' + targetRID)
                 .on('data', (ss) => {

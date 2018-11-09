@@ -41,8 +41,11 @@
       eval(command) 
     }
     catch(err){
-      print('Retrying ' + command)
-      retry(command)
+      var e = '' + err
+      if(e.indexOf('latest') > 0) {
+	      print('Retrying ' + command)
+    	  retry(command)
+      }
     }
   }
 
@@ -109,13 +112,20 @@
   var id = (new Date())*1
   jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
   var stmt = 'INSERT INTO '+ classname + ' CONTENT ' + jsonstring
-  if(classname != 'ImageLoad') var r = db.command(stmt);
+  if(classname != 'ImageLoad') {
+     try {
+        var r = db.command(stmt);
+     }
+     catch(err){
+       print(Date() + ' Error inserting ' + stmt)
+     }
+  }
   //print(Date() + classname);
   switch(classname) {
     case "ProcessCreate":
       		var current_id = r[0].getProperty('id')
       		// update SMSS.exe ID into cache table to find Type A process
-      		print(Date() + " AddEvent for " + classname + " " + e['Image'] + " on " + e['Hostname'])
+      		print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
       		if(e['ParentImage'] == "System") {// smss.exe
                 print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
                 db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
@@ -162,8 +172,8 @@
       		var t = db.query('select from TypeA_id_cache')
       		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
                && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
-                retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
-                print('Created PendingType for ' + r[0].getProperty('@rid'))
+            	print(' Created PendingType for ' + r[0].getProperty('@rid'))
+              	retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
             }
       		else {
               	print('ProcessType: BeforeExplorer')
@@ -186,8 +196,8 @@
           if(u[0].getProperty('HashCount') == 1) {
               var r = db.command(stmt); // insert the ImageLoad log line
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
-              retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-              retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
+              db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))
+              db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))
               print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))              
           }//*/
       	  break;
@@ -233,6 +243,8 @@
           break;
 
     case 'UserActionTracking':
+         // break;
+      
           //print(Date() + ' Start UAT Processing')
           if(e['Action']=='Foreground Transition'){
               try{
@@ -272,7 +284,7 @@
                     	else {
                           print('Existing ProcessType ' + hupc[0].getProperty('ProcessType'))
                         }
-                        db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))
+                        retry("db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))")
                   }
                   retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
                   //print(Date() + ' End UAT update PC')

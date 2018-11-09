@@ -74,7 +74,11 @@ function processFile(filepath) {
             console.log('Delta: ' + (lineCount - rowCount)) 
 
             setTimeout(function(){ // delayed delete to mitigate any file contention
-            	fs.unlink(filepath, (err) => {
+                //var mydate = new Date()
+                //var newfilepath = '/home/rslsync/ResilioSync/lazarus/archiveLogs/' + mydate.getTime()
+                //fs.createReadStream(filepath).pipe(fs.createWriteStream(newfilepath));
+                //console.log('Move to ' + newfilepath)
+                fs.unlink(filepath, (err) => {
                   if (err) {
                     console.log(filepath + ' delete error');
                   }

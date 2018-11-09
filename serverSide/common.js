@@ -55,7 +55,19 @@ process.stdin.resume(); //so the program will not close instantly
 function exitHandler(err) {
     if(err != null) console.log(err)
     console.log('cleaning up...')    
-    _handle.unsubscribe()
+    if(_handle) {
+        _handle.unsubscribe()
+            _session.close()
+            .then(() =>{
+                console.log('session closed');
+                _client.close()
+                .then(() => {
+                    console.log('client closed');
+                    process.exit();
+                })
+            })
+    }
+    else {
         _session.close()
         .then(() =>{
             console.log('session closed');
@@ -65,6 +77,7 @@ function exitHandler(err) {
                 process.exit();
             })
         })
+    }
     
 }
 process.on('exit', exitHandler.bind(null));
