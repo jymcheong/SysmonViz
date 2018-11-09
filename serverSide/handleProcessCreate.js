@@ -19,7 +19,7 @@ function eventHandler(newpc) {
     }
 }
 
-setInterval(function(){ processQueue()},500);
+setInterval(function(){ processQueue()},600);
 
 function processQueue(){
     if(_processCreateQ.length == 0){ return; }
@@ -66,6 +66,11 @@ function connectParentOf(sourceRID, targetRID) {
 function updateParentOfSequence(targetRID){
     _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
     .on('data',(s)=> {
+        if(s['seq'].indexOf('smss.exe >') < 0) {
+            console.log('Partial sequence found, retrying for ' + s['seq'])
+            setTimeout(function(){eval('updateParentOfSequence(targetRID)')},2000)
+            return
+        }
         _session.command('UPDATE ParentOfSequence set Sequence = :seq, Count = Count + 1 \
                          UPSERT RETURN AFTER @rid, Count WHERE Sequence = :seq',{ params : {seq: s['seq']}})
         .on('data',(c)=> {
