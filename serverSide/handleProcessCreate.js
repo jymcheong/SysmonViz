@@ -66,6 +66,10 @@ function connectParentOf(sourceRID, targetRID) {
 function updateParentOfSequence(targetRID){
     _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
     .on('data',(s)=> {
+        if(s['seq'].indexOf('circular') > 0) {
+            console.log('Circular path detected, run correction server side function')
+            return
+        }
         if(s['seq'].indexOf('smss.exe >') < 0) {
             console.log('Partial sequence found, retrying for ' + s['seq'])
             setTimeout(function(){eval('updateParentOfSequence(targetRID)')},2000)
