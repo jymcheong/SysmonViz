@@ -230,7 +230,7 @@
            
 
     case 'UserActionTracking':
-         break;
+         //break;
           //print(Date() + ' Start UAT Processing')
           if(e['Action']=='Foreground Transition'){ 
               retry("db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? AND Hostname = ? Order By id Desc Limit 1) TO ?',e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))")
@@ -243,11 +243,15 @@
               var pc = db.query('SELECT FROM ProcessCreate \
 					   WHERE Hostname = ? AND ProcessId = ? Order By id Desc LIMIT 1',e['Hostname'],e['ProcessId'])
               if(pc.length == 0) return //means somehow ProcessCreate was missing.
-              //print(Date() + '  UAT found PC')
+            
+              print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
+              retry("db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))")
+              
+              // handle PendingType
               if(e['Action'].indexOf('Click') > 0 || e['Action'].indexOf('Press')) {
                   var checkPendingType = '' + pc[0]
                   if(checkPendingType.indexOf('in_PendingType:[]') < 0 && checkPendingType.indexOf('in_PendingType') > 0){
-                        var hupc = db.query('SELECT expand(out) FROM ?',pc[0].getProperty('in_PendingType'))
+                        /*var hupc = db.query('SELECT expand(out) FROM ?',pc[0].getProperty('in_PendingType'))
                         if(hupc[0].getProperty('ProcessType') === null) {
                             retry("db.command('UPDATE ? SET ProcessType = ?', hupc[0].getProperty('@rid'),'AfterExplorerForeground')")
                             print("update to AfterExplorerForeground for " + hupc[0].getProperty('@rid'))
@@ -256,15 +260,15 @@
                             print('')
                         }
                     	else {
-                          print('Existing ProcessType ' + hupc[0].getProperty('ProcessType'))
-                        }
-                        retry("db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))")
+                          print(hupc[0].getProperty('CommandLine') + ' | Existing ProcessType ' + hupc[0].getProperty('ProcessType'))
+                        } */
+                  		retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
+                        print("Set ProcessType to AfterExplorerFG for " + pc[0].getProperty('CommandLine'))
+                    	retry("db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))")
                   }
-                  retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
                   //print(Date() + ' End UAT update PC')
               }
-              print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
-              retry("db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))")
+              
           } 
           break;     
   }
