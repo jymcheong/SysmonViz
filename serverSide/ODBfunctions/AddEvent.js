@@ -228,9 +228,10 @@
          print('Done CreatedThread')
          break;
            
-
-    case 'UserActionTracking':
-         //break;
+		// shifted to LinkUAT, which is called by handleUserActions.js
+/*    case 'UserActionTracking':
+          break;
+      
           //print(Date() + ' Start UAT Processing')
           if(e['Action']=='Foreground Transition'){ 
               retry("db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? AND Hostname = ? Order By id Desc Limit 1) TO ?',e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))")
@@ -251,17 +252,6 @@
               if(e['Action'].indexOf('Click') > 0 || e['Action'].indexOf('Press')) {
                   var checkPendingType = '' + pc[0]
                   if(checkPendingType.indexOf('in_PendingType:[]') < 0 && checkPendingType.indexOf('in_PendingType') > 0){
-                        /*var hupc = db.query('SELECT expand(out) FROM ?',pc[0].getProperty('in_PendingType'))
-                        if(hupc[0].getProperty('ProcessType') === null) {
-                            retry("db.command('UPDATE ? SET ProcessType = ?', hupc[0].getProperty('@rid'),'AfterExplorerForeground')")
-                            print("update to AfterExplorerForeground for " + hupc[0].getProperty('@rid'))
-                            print('ProcessCreate is '+ pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('Image'))
-                            print('Removing ' + pc[0].getProperty('in_PendingType'))
-                            print('')
-                        }
-                    	else {
-                          print(hupc[0].getProperty('CommandLine') + ' | Existing ProcessType ' + hupc[0].getProperty('ProcessType'))
-                        } */
                   		retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
                         print("Set ProcessType to AfterExplorerFG for " + pc[0].getProperty('CommandLine'))
                     	retry("db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))")
@@ -270,7 +260,7 @@
               }
               
           } 
-          break;     
+          break;     */
   }
 
   return
