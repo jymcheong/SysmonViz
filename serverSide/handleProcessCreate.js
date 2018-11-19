@@ -57,17 +57,38 @@ function connectParentOf(sourceRID, targetRID) {
         updateParentOfSequence(targetRID)
     }) 
     .on('error',(err)=> {
-        console.log('Retrying connectParentOfDirect for ' + sourceRID + ' to ' + targetRID)
-        connectParentOf(sourceRID, targetRID)
+        var msg = '' + err
+        if(msg.indexOf('UPDATE') > 0) {
+            console.log('Retrying connectParentOfDirect for ' + sourceRID + ' to ' + targetRID)
+            connectParentOf(sourceRID, targetRID)
+        }
+        else{
+            console.error(msg)
+        }
     })   
 }
 
+function linkSequenceToProcessCreate(sourceRID, targetRID, edgeClass) {
+    _session.command('CREATE EDGE '+ edgeClass +' from ' + sourceRID + ' TO ' + targetRID)
+    .on('data', (ss) => {
+        //console.log('Created '+ edgeClass +' for ' + targetRID)
+    })
+    .on('error',(err)=> {
+        var msg = '' + err
+        if(msg.indexOf('UPDATE') > 0) {
+            linkSequenceToProcessCreate(sourceRID, targetRID, edgeClass)
+        }
+        else{
+            console.error(msg)
+        }
+    })
+}
 
 function updateParentOfSequence(targetRID){
     _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
     .on('data',(s)=> {
         if(s['seq'].indexOf('circular') > 0) {
-            console.log('Circular path detected, run correction server side function')
+            console.error('Circular path detected!')
             return
         }
         if(s['seq'].indexOf('smss.exe >') < 0) {
@@ -80,10 +101,11 @@ function updateParentOfSequence(targetRID){
         .on('data',(c)=> {
             console.log('Sequence count:'+ c['Count'] + ':' + s['seq'])
             if(c['Count'] == 1) {
-                _session.command('CREATE EDGE SequenceSighted from ' + c['@rid'] + ' TO ' + targetRID)
-                .on('data', (ss) => {
-                    console.log('Created SequenceSighted for ' + targetRID)
-                })
+                linkSequenceToProcessCreate(c['@rid'],targetRID,'SequenceSighted')
+            }
+            else {
+                //not error; the link direction differs from SequenceSighted
+                linkSequenceToProcessCreate(targetRID,c['@rid'],'hasSequence') 
             }
         })
     })

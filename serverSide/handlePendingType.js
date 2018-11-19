@@ -5,7 +5,7 @@ startLiveQuery("select from PendingType")
 
 function eventHandler(newEvent) {
     console.log('Created timer for PendingType ' + newEvent['@rid'])
-    setTimeout(checkUserActions, 20000, newEvent);
+    setTimeout(checkUserActions, 60000, newEvent);
 }
 
 function updateHUPCProcessType(hupc_rid, pendingEdge_rid){
@@ -15,8 +15,11 @@ function updateHUPCProcessType(hupc_rid, pendingEdge_rid){
         _session.command('DELETE EDGE ' + pendingEdge_rid)
     })
     .on('error',(err)=> {
-        console.log('Retrying HUPC ProcessType update for '+ hupc_rid)
-        updateHUPCProcessType(hupc_rid, pendingEdge_rid)
+        var msg = '' + err
+        if(msg.indexOf('UPDATE') > 0) {
+            console.log('Retrying HUPC ProcessType update for '+ hupc_rid)
+            updateHUPCProcessType(hupc_rid, pendingEdge_rid)
+        }
     })
 }
 
@@ -26,8 +29,11 @@ function updateProcessCreateProcessType(targetRID){
         console.log('Updated ProcessCreate ProcessType for ' + targetRID)
     })
     .on('error',(err)=> {
-        console.log('Retrying ProcessCreate ProcessType update for '+ hupc_rid)
-        updateProcessCreateProcessType(targetRID)
+        var msg = '' + err
+        if(msg.indexOf('UPDATE') > 0) {
+            console.log('Retrying ProcessCreate ProcessType update for '+ hupc_rid)
+            updateProcessCreateProcessType(targetRID)
+        }
     })
 }
 

@@ -4,18 +4,18 @@ eval(fs.readFileSync(__dirname + '/common.js')+'');
 startLiveQuery("select from Sysmon")
 
 function linkNewEvent(classname, sourceRID, targetRID){
-        //console.log(classname + ' link ' + sourceRID + ' to ' + targetRID)
         sql = 'CREATE EDGE ' + _edgeLookup[classname] + ' FROM ' + sourceRID + ' TO ' + targetRID
-        //if(classname == 'FileCreate') console.log(sql)
         _session.command(sql)
         .on("data", data => {
-            //if(classname == 'FileCreate') console.log('Connecting ' + _edgeLookup[classname] + ' FROM ' + sourceRID + ' TO ' + targetRID)
-            //_session.command('UPDATE '+ targetRID + ' SET ToBeProcessed = false')
             updateToBeProcessed(targetRID)
         })
         .on('error',(err)=> {
-            console.log('retrying linkNewEvent... targetRID:' + targetRID)
-            linkNewEvent(classname, sourceRID, targetRID)
+            var msg = '' + err
+            if(msg.indexOf('UPDATE') > 0) {
+                console.log('retrying linkNewEvent... targetRID:' + targetRID)
+                linkNewEvent(classname, sourceRID, targetRID)
+            }
+            else console.error(msg)
         })
 }
 
@@ -52,13 +52,11 @@ function eventHandler(newEvent) {
     if(newEvent['@class'] == 'ProcessTerminate') {
         var filepath = _cacheProcessCreateRID + '/' + newEvent['Hostname'] + newEvent['ProcessGuid']
         if(fs.existsSync(filepath)){
-            // read @rid , pass to server function then delete
             fs.unlink(filepath, (err) => {
                 if (err) {
-                    console.log(err)
+                    console.error(err)
                     return
                 } 
-                //console.log(filepath + ' was deleted');
               });
         }
     }
