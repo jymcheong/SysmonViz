@@ -153,6 +153,8 @@
               	retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
                 print()
                 // find any FileCreate that can be link to this sighting
+              	db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+                print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
             }
       		// CommandLine tracking
       		u = db.command('UPDATE HostUserPrivilegeCommandLine set Count = Count + 1 \
@@ -166,6 +168,9 @@
                  print(Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
               	 retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
               	 retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")
+                 // find any FileCreate that can be link to this sighting
+              	 db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+                 print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
             }
       
       		// Check Process Type 
@@ -198,7 +203,10 @@
               print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
               retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
               retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
-              print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))              
+              print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))      
+              
+              db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+              print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
           }//*/
       	  break;
       

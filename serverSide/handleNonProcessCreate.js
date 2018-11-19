@@ -48,6 +48,10 @@ function eventHandler(newEvent) {
                     linkNewEvent(newEvent['@class'],processCreateRid, newEvent['@rid'])
             })   
             break;
+
+        case "Watchlist":
+            console.log('new Process in watchlist!')
+            break;
     }
     if(newEvent['@class'] == 'ProcessTerminate') {
         var filepath = _cacheProcessCreateRID + '/' + newEvent['Hostname'] + newEvent['ProcessGuid']
