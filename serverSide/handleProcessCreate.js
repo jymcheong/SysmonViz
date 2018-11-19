@@ -85,6 +85,7 @@ function linkSequenceToProcessCreate(sourceRID, targetRID, edgeClass) {
 }
 
 function updateParentOfSequence(targetRID){
+    // target is a ProcessCreate object
     _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
     .on('data',(s)=> {
         if(s['seq'].indexOf('circular') > 0) {
@@ -102,6 +103,10 @@ function updateParentOfSequence(targetRID){
             console.log('Sequence count:'+ c['Count'] + ':' + s['seq'])
             if(c['Count'] == 1) {
                 linkSequenceToProcessCreate(c['@rid'],targetRID,'SequenceSighted')
+                _session.query('SELECT AddSequenceWatchlist(' + targetRID + ')')
+                .on('error', (err)=>{
+                    console.error(err)
+                })
             }
             else {
                 //not error; the link direction differs from SequenceSighted
