@@ -1,7 +1,15 @@
 const fs = require("fs")
 eval(fs.readFileSync(__dirname + '/common.js')+'');
 
-const directory_to_monitor = "/home/uploader";
+if(process.argv[2] === undefined) {
+    console.log('Need a valid directory as parameter...'); return;
+}
+
+if(!fs.existsSync(process.argv[2])) {
+    console.log('Need a valid directory as parameter...'); return;    
+}
+
+const directory_to_monitor = process.argv[2];
 var es = require('event-stream'); //install first: npm i event-stream
 var lineCount = 0
 var rowCount = 0
@@ -39,13 +47,6 @@ const OrientDBClient = require("orientjs").OrientDBClient
         })
     })
 
-
-
-
-
-//setInterval(function(){ db.query('select ConnectProcessCreate()') },2000)
-//setInterval(function(){ db.query('select RunEdgeConnection()') },4000)
-
 startFileMonitor() 
 //processFile('/tmp/events.txt') // test single file
 
@@ -57,7 +58,6 @@ function processFile(filepath) {
     var s = fs.createReadStream(filepath)
         .pipe(es.split())
         .pipe(es.mapSync(function(line) {            
-            // pause the readstream
             s.pause();
             // process line here and call s.resume() when rdy
             processLine(line)
@@ -65,19 +65,14 @@ function processFile(filepath) {
             s.resume();
         })
         .on('error', function(err){
-            console.log('Error while reading file.', err);
+            console.error('Error while reading file.', err);
         })
         .on('end', function(){
             console.log('Files in queue: ' + fileQueue.length)
             console.log('Total line count: ' + lineCount) // tally with row count
             console.log('Total row count:' + rowCount)
             console.log('Delta: ' + (lineCount - rowCount)) 
-
             setTimeout(function(){ // delayed delete to mitigate any file contention
-                //var mydate = new Date()
-                //var newfilepath = '/home/rslsync/ResilioSync/lazarus/archiveLogs/' + mydate.getTime()
-                //fs.createReadStream(filepath).pipe(fs.createWriteStream(newfilepath));
-                //console.log('Move to ' + newfilepath)
                 fs.unlink(filepath, (err) => {
                   if (err) {
                     console.log(filepath + ' delete error');
@@ -87,7 +82,6 @@ function processFile(filepath) {
                   }    
                 });
             },200)
-         
             if(fileQueue.length > 0){
                 processFile(fileQueue.shift())
             }
@@ -100,7 +94,6 @@ function processLine(eventline) {
     try {
         if(eventline.length > 0) {
             var e = JSON.parse(eventline.trim()) //to test if it is valid JSON            
-//	    if(eventline.indexOf('Network connection detected') > 0) { return }
             stmt = "select AddEvent(:data)"
             lineCount++
             _session.query(stmt,{params:{data:escape(eventline)}})
@@ -110,10 +103,10 @@ function processLine(eventline) {
         }
     }
     catch(err) {
-        console.log('line length: ' + eventline.length)
-        console.log('invalid JSON line:')
-        console.log(eventline)
-        throw err
+        console.error('line length: ' + eventline.length)
+        console.error('invalid JSON line:')
+        console.error(eventline)
+        console.error(err)
     }
 }
 
@@ -146,7 +139,7 @@ function startFileMonitor() {
         {
             debounceMS: 250,
             errorCallback(errors) {
-                console.log(errors)
+                console.error(errors)
             }
         })
         .then(function(watcher) {

@@ -1,3 +1,16 @@
+const fs = require("fs")
+
+if(process.argv[2] === undefined) {
+    console.log('Need a valid directory as parameter...'); return;
+}
+
+if(!fs.existsSync(process.argv[2])) {
+    console.log('Need a valid directory as parameter...'); return;    
+}
+console.log(process.argv[2])
+
+return
+
 var stringSimilarity = require('string-similarity');
 var jw = require('jaro-winkler');
 

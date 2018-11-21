@@ -6,7 +6,7 @@ var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
 
 var _session, _client, _handle;
 var _cachedir = __dirname + '/cache';
-var _host = '172.30.1.178';
+var _host = 'odb';
 var _port = 2424;
 var _dbname = 'DataFusion';
 var _user = 'root';

@@ -54,7 +54,7 @@ function connectParentOf(sourceRID, targetRID) {
     _session.command('CREATE EDGE ParentOf FROM ' + sourceRID +'  TO ' + targetRID)    
     .on('data',(results)=> {
         updateToBeProcessed(targetRID)
-        updateParentOfSequence(targetRID)
+        updateParentOfSequence(targetRID,0)
     }) 
     .on('error',(err)=> {
         var msg = '' + err
@@ -84,7 +84,12 @@ function linkSequenceToProcessCreate(sourceRID, targetRID, edgeClass) {
     })
 }
 
-function updateParentOfSequence(targetRID){
+function updateParentOfSequence(targetRID, retry){
+    if(retry > 3) {
+        console.log('Give up try for ' + targetRID)
+        return
+    }
+    retry += 1
     // target is a ProcessCreate object
     _session.query("SELECT GetParentOfSequence('"+ targetRID + "') as seq")
     .on('data',(s)=> {
@@ -93,8 +98,8 @@ function updateParentOfSequence(targetRID){
             return
         }
         if(s['seq'].indexOf('smss.exe >') < 0) {
-            console.log('Partial sequence found, retrying for ' + s['seq'])
-            setTimeout(function(){eval('updateParentOfSequence(targetRID)')},2000)
+            console.log('Partial sequence found, retrying '+ retry + ' ' + s['seq'])
+            setTimeout(function(){eval('updateParentOfSequence(targetRID,'+ retry + ')')},2000)
             return
         }
         _session.command('UPDATE ParentOfSequence set Sequence = :seq, Count = Count + 1 \
