@@ -51,35 +51,31 @@ function updateToBeProcessed(targetRID){
     })
 }
 
+function closeDBsession(){
+    _session.close()
+    .then(() =>{
+        console.log('session closed');
+        _client.close()
+        .then(() => {
+            console.log('client closed');
+            process.exit();
+        })
+    })
+}
+
 process.stdin.resume(); //so the program will not close instantly
 function exitHandler(err) {
     if(err != null) console.log(err)
     console.log('cleaning up...')    
     if(_handle) {
         _handle.unsubscribe()
-            _session.close()
-            .then(() =>{
-                console.log('session closed');
-                _client.close()
-                .then(() => {
-                    console.log('client closed');
-                    process.exit();
-                })
-            })
+        setInterval(function(){ closeDBsession()},600);
     }
     else {
-        _session.close()
-        .then(() =>{
-            console.log('session closed');
-            _client.close()
-            .then(() => {
-                console.log('client closed');
-                process.exit();
-            })
-        })
+        closeDBsession()
     }
-    
 }
+
 process.on('exit', exitHandler.bind(null));
 process.on('SIGINT', exitHandler.bind(null));
 process.on('SIGUSR1', exitHandler.bind(null));
