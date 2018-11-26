@@ -6,11 +6,12 @@ var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
 
 var _session, _client, _handle;
 var _cachedir = __dirname + '/cache';
-var _host = 'odb';
+var _host = '127.0.0.1';
 var _port = 2424;
 var _dbname = 'DataFusion';
 var _user = 'root';
 var _pass = 'Password1234'
+var _sessionStarted = null
 
 require('console-stamp')(console, 'HH:MM:ss.l')
 
@@ -36,6 +37,7 @@ function startLiveQuery(stm){
             .on("data", data => {
                 if(data['operation'] == 1) eventHandler(data['data'])
             })
+            if(_sessionStarted != null) _sessionStarted()
         })
     })
 }

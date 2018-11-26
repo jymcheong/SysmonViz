@@ -1,36 +1,67 @@
+const fs = require("fs")
+eval(fs.readFileSync(__dirname + '/common.js')+'')
 const jw = require('jaro-winkler');
 const _threshold = 0.80
 
-var HUPCs = fs.readFileSync('/Users/jymcheong/Desktop/HUPCdata.json', "utf8");
-var parsed = JSON.parse(HUPCs)
-
-var previous_str = ''
-var clusters = {}
-
-for(i =0; i < parsed['result'].length; i++){
-    var clusterhead = '' + parsed['result'][i]['CommandLine']
-    clusterhead = clusterhead.split(' ')[0]
-    var similarity = jw(previous_str,parsed['result'][i]['CommandLine'])
-    if(similarity > _threshold) {
-        console.log('Similar to previous: ' + parsed['result'][i]['CommandLine'])
-        clusters[clusterhead] += 1
-    }
-    else {
-        console.log('Checking with clusters...')
-        var found = false
-        for(var key in clusters) {
-            similarity = jw(clusters[key], parsed['result'][i]['CommandLine'])
-            if(similarity > _threshold) {
-                found = true
-                break
-            }
+_sessionStarted = function(){
+    _session.query("select from hupc where Count = 1 order by CommandLine")
+    .all()
+    .then((hupc)=> {
+        for(var i = 0; i < hupc.length; i++) {
+            _hupcQ.push(hupc[i])
         }
-        if(found == false) {
-            console.log(similarity + ' Creating a new cluster for dissimilar string: ' + parsed['result'][i]['CommandLine'])
-            clusters[clusterhead] = parsed['result'][i]['CommandLine']
-        }
-    }
-    previous_str = parsed['result'][i]['CommandLine'];
+        processQitem()
+    })
 }
 
-console.log('Cluster size: ' + Object.keys(clusters).length)
+startLiveQuery("select from CommandLineCluster")
+
+function eventHandler(newEvent) { 
+    console.log(newEvent)
+}
+
+var _hupcQ = []
+
+
+function newCluster(hupc){
+    _session.command('INSERT INTO CommandLineCluster SET CommandLine = :c', 
+    { params : {c: hupc['CommandLine']}})
+    .on('data',(cc) =>{
+        _session.command('CREATE EDGE SimilarTo FROM :h TO :c',
+        { params : {h: hupc['@rid'], c: cc['@rid']}})
+        .on('data', (st)=>{
+            processQitem()
+        })
+    })
+}
+
+function processQitem() {
+    if(_hupcQ.length == 0) { 
+        return 
+    }
+    var hupc = _hupcQ.shift()
+    _session.query("select from CommandLineCluster")
+    .all()
+    .then((results)=>{
+        var found = false
+        var i = -1
+        for(i = 0; i < results.length; i++){
+            if(jw(hupc['CommandLine'],results[i]['CommandLine']) > _threshold) {
+                found = true;
+                break;
+            }
+        }
+        if(found){
+            console.log('Create link from ' + hupc['@rid'] + ' to ' + results[i]['@rid'])
+            _session.command('CREATE EDGE SimilarTo FROM :h TO :c',
+            { params : {h: hupc['@rid'], c: results[i]['@rid']}})
+            .on('data', (st)=>{
+                processQitem()
+            })
+        }
+        else {
+            console.log('Need to create new cluster!')
+            newCluster(hupc)
+        }
+    })
+}
