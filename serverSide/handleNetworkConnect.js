@@ -1,7 +1,7 @@
 const fs = require("fs")
 eval(fs.readFileSync(__dirname + '/common.js')+'');
 
-startLiveQuery("select from Sysmon")
+startLiveQuery("select from NetworkTracking")
 
 function linkNewEvent(classname, sourceRID, targetRID){
         //console.log(classname + ' link ' + sourceRID + ' to ' + targetRID)
@@ -18,9 +18,10 @@ function linkNewEvent(classname, sourceRID, targetRID){
 
 function eventHandler(newEvent) {
     if(newEvent['Image'] == 'System') return
+    
     switch(newEvent['@class']){
       case "NetworkConnect":  //ID3: ProcessCreate-[ConnectedTo]->NetworkConnect 
-            if(newEvent['@class'] == 'FileCreate') console.log('FileCreate came in...' + newEvent['@rid'])
+            //TODO: only link when Process is in the watchlist
             fs.readFile(_cacheProcessCreateRID + '/' + newEvent['Hostname'] + newEvent['ProcessGuid'], function(err, processCreateRid){
                 if(err) { // not in cache, find in database
                     if(newEvent['@class'] == 'FileCreate') console.log('Trying database to find for ' + newEvent['@rid']+ '...')

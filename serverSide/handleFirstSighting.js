@@ -20,7 +20,7 @@ function linkSimilarTo(startRID, endRID) {
 
 function findCommandLineCluster(hupc){
     _session.query("select from CommandLineCluster")
-    .all()
+    .all() // currently brute-force approach
     .then((results)=>{
         var found = false
         var i = -1
@@ -52,6 +52,9 @@ function eventHandler(newEvent) {
         console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + pc['@rid'])
     })
     // Type 1 - Foreign Binaries; new Hashes
+    // Deal with SYS
+    // Deal with EXE
+    // Deal with DLL
 
     // Type 2 - Abuse Existing Tools, unusual CommandLines
     if(newEvent['@class'] == 'CommandLineSighted') {
@@ -61,5 +64,7 @@ function eventHandler(newEvent) {
         })    
     }
 
-    // Type 3 - Contents Exploitation
+    // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
+    // if foreground, it may be signal of user behavior deviations
+
 }
