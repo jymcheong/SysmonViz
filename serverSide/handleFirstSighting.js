@@ -19,7 +19,8 @@ function linkSimilarTo(startRID, endRID) {
 }
 
 function findCommandLineCluster(hupc){
-    _session.query("select from CommandLineCluster")
+    var s = hupc['CommandLine'].length > 4 ? hupc['CommandLine'].substring(0,3) : hupc['CommandLine']
+    _session.query('select from CommandLineCluster WHERE CommandLine LIKE :c',{ params : {c: s + '%' }})
     .all() // currently brute-force approach
     .then((results)=>{
         var found = false
