@@ -42,6 +42,22 @@ function startLiveQuery(stm){
     })
 }
 
+function connectODB(){
+    return new Promise(resolve => { 
+            const OrientDBClient = require("orientjs").OrientDBClient
+            OrientDBClient.connect({ host: _host ,port: _port})
+            .then(client => {
+                _client = client; //used in cleanup.js
+                client.session({ name: _dbname, username: _user, password: _pass })
+                .then(session => {
+                    console.log('session opened')
+                    _session = session //used in cleanup.js
+                    resolve(session)                     
+                })
+            })
+    });
+}
+
 function updateToBeProcessed(targetRID){
     _session.command('Update ' + targetRID + 'SET ToBeProcessed = false')
     .on('data',(data)=> {
@@ -66,6 +82,7 @@ function closeDBsession(){
 }
 
 process.stdin.resume(); //so the program will not close instantly
+
 function exitHandler(err) {
     if(err != null) console.log(err)
     console.log('cleaning up...')    
