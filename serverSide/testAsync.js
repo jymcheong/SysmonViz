@@ -5,7 +5,7 @@ async function asyncCall() {
     console.log('calling');
     var result = await connectODB();
     console.log(result);
-    _handle = _session.liveQuery('select from processcreate')
+    _handle = await _session.liveQuery('select from processcreate')
     .on("data", data => {
         console.log(data)
     })
