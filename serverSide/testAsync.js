@@ -10,7 +10,7 @@ async function asyncCall() {
         console.log(data)
     })
     _handles.push(_handle)
-    _handle = _session.liveQuery('select from networkconnect')
+    _handle = await _session.liveQuery('select from networkconnect')
     .on("data", data => {
         console.log(data)
     })

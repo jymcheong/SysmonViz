@@ -26,39 +26,25 @@ if (!fs.existsSync(_cacheProcessCreateRID)){
     fs.mkdirSync(_cacheProcessCreateRID);
 }
 
-function startLiveQuery(stm){
+async function startLiveQuery(stm){
     const OrientDBClient = require("orientjs").OrientDBClient
-    OrientDBClient.connect({ host: _host ,port: _port})
-    .then(client => {
-        _client = client; //used in cleanup.js
-        client.session({ name: _dbname, username: _user, password: _pass })
-        .then(session => {
-            console.log('session opened')
-            _session = session //used in cleanup.js
-            _handle = session.liveQuery(stm) //used in cleanup.js
-            .on("data", data => {
-                if(data['operation'] == 1) eventHandler(data['data'])
-            })
-            _handles.push(_handle)
-            if(_sessionStarted != null) _sessionStarted()
-        })
+    _client = await OrientDBClient.connect({ host: _host ,port: _port})
+    _session = await _client.session({ name: _dbname, username: _user, password: _pass })
+    console.log('session opened')
+    _handle = await _session.liveQuery(stm).on("data", data => {
+        if(data['operation'] == 1) eventHandler(data['data'])
     })
+    _handles.push(_handle)
+    if(_sessionStarted != null) _sessionStarted()
 }
 
 function connectODB(){
-    return new Promise( (resolve, reject) => { 
+    return new Promise( async(resolve, reject) => { 
         try {
             const OrientDBClient = require("orientjs").OrientDBClient
-            OrientDBClient.connect({ host: _host ,port: _port})
-            .then(client => {
-                _client = client; //used in cleanup.js
-                client.session({ name: _dbname, username: _user, password: _pass })
-                .then(session => {
-                    console.log('session opened')
-                    _session = session //used in cleanup.js
-                    resolve(session)                     
-                })
-            })
+            _client = await OrientDBClient.connect({ host: _host ,port: _port})
+            _session = await _client.session({ name: _dbname, username: _user, password: _pass })
+            resolve(_session)                     
         }
         catch(err) {
             reject(err)
@@ -77,19 +63,15 @@ function updateToBeProcessed(targetRID){
     })
 }
 
-function closeDBsession(){
+async function closeDBsession(){
     if(_session){
-        _session.close()
-        .then(() =>{
-            console.log('session closed');
-            _session = null
-            _client.close()
-            .then(() => {
-                console.log('client closed');
-                _client = null
-                process.exit();
-            })
-        })
+        await _session.close()
+        console.log('session closed');
+        _session = null
+        await _client.close()
+        console.log('client closed');
+        _client = null
+        process.exit();
     }
 }
 
