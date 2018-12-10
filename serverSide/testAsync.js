@@ -5,8 +5,17 @@ async function asyncCall() {
     console.log('calling');
     var result = await connectODB();
     console.log(result);
+    _handle = _session.liveQuery('select from processcreate')
+    .on("data", data => {
+        console.log(data)
+    })
+    _handles.push(_handle)
+    _handle = _session.liveQuery('select from networkconnect')
+    .on("data", data => {
+        console.log(data)
+    })
+    _handles.push(_handle)
     // expected output: 'resolved'
 }
   
 asyncCall();
-  

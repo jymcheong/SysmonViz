@@ -1,3 +1,5 @@
+require('console-stamp')(console, 'HH:MM:ss.l')
+
 var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
                     'PipeConnected':'ConnectedPipe', 'RawAccessRead':'RawRead',
                     'FileCreateTime':'ChangedFileCreateTime', 'FileCreate':'CreatedFile',
@@ -12,8 +14,8 @@ var _dbname = 'DataFusion';
 var _user = 'root';
 var _pass = 'Password1234'
 var _sessionStarted = null
-
-require('console-stamp')(console, 'HH:MM:ss.l')
+var _handles = []
+var _exiting = false
 
 if (!fs.existsSync(_cachedir)){
     fs.mkdirSync(_cachedir);
@@ -37,13 +39,15 @@ function startLiveQuery(stm){
             .on("data", data => {
                 if(data['operation'] == 1) eventHandler(data['data'])
             })
+            _handles.push(_handle)
             if(_sessionStarted != null) _sessionStarted()
         })
     })
 }
 
 function connectODB(){
-    return new Promise(resolve => { 
+    return new Promise( (resolve, reject) => { 
+        try {
             const OrientDBClient = require("orientjs").OrientDBClient
             OrientDBClient.connect({ host: _host ,port: _port})
             .then(client => {
@@ -55,6 +59,10 @@ function connectODB(){
                     resolve(session)                     
                 })
             })
+        }
+        catch(err) {
+            reject(err)
+        }
     });
 }
 
@@ -70,28 +78,34 @@ function updateToBeProcessed(targetRID){
 }
 
 function closeDBsession(){
-    _session.close()
-    .then(() =>{
-        console.log('session closed');
-        _client.close()
-        .then(() => {
-            console.log('client closed');
-            process.exit();
+    if(_session){
+        _session.close()
+        .then(() =>{
+            console.log('session closed');
+            _session = null
+            _client.close()
+            .then(() => {
+                console.log('client closed');
+                _client = null
+                process.exit();
+            })
         })
-    })
+    }
 }
 
 process.stdin.resume(); //so the program will not close instantly
 
 function exitHandler(err) {
+    if(_exiting) return;
+    _exiting = true
+    setTimeout(function(){ closeDBsession()},1000);
     if(err != null) console.log(err)
     console.log('cleaning up...')    
-    if(_handle) {
-        _handle.unsubscribe()
-        setInterval(function(){ closeDBsession()},600);
-    }
-    else {
-        closeDBsession()
+    var i = 0, j = _handles.length
+    console.log('No of handles: ' + j)
+    while(_handles.length > 0) {
+        console.log('Unsubscribed handle #' + i++)
+        _handles.shift().unsubscribe()
     }
 }
 
