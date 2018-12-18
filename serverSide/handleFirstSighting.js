@@ -47,25 +47,65 @@ function findCommandLineCluster(hupc){
     })
 }
 
+function linkToCase(startRID, endRID) {
+    _session.command('CREATE EDGE AddedTo FROM :h TO :c',
+    { params : {h: startRID, c: endRID}})
+    .on('error', (err)=>{
+        var msg = '' + err
+        if(msg.indexOf('modified')) {
+            linkToCase(startRID, endRID)
+        }
+        else
+            console.error(msg)
+    })
+}
+
+function handleSYS(newEvent) {
+    var score = 40;
+    _session.query('SELECT FROM ' + newEvent['in'])
+    .on('data', (s)=>{
+        console.log('SignatureStatus:' + s['SignatureStatus']);
+        score = s['SignatureStatus'] == 'Valid' ? score : score + 20;
+        score = s['Signature'] == 'Microsoft Windows' ? score : score + 20;
+        _session.command('Update Case SET Score = Score + :sc UPSERT RETURN AFTER \
+        @rid, Score WHERE Hostname = :h AND State = "new"',{ params : {sc: score, h: s['Hostname']}})
+        .on('data',(c) => {
+            console.log('\nCase id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
+            linkToCase(newEvent['in'],c['@rid'])
+        })
+    })
+}
+
+// Type 2 - Abuse Existing Tools, unusual CommandLines
+function handleCommandLine(newEvent) {
+    _session.query('SELECT FROM ' + newEvent['out'])
+    .on('data', (hupc)=>{
+        findCommandLineCluster(hupc) //if existing cluster not found, higer score
+    })    
+}
+
 function eventHandler(newEvent) {   
     _session.query('SELECT FROM ' + newEvent['in'])
     .on('data', (pc)=>{
         console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + pc['@rid'])
     })
-    // Type 1 - Foreign Binaries; new Hashes
-    // Deal with SYS
-    // Deal with EXE
-    // Deal with DLL
+    switch(newEvent['@class']) {
+         // Type 1 - Foreign Binaries; new Hashes
+        // Deal with EXE - Foreign or NOT
+        // Deal with DLL - Signed by Microsoft or NOT
 
-    // Type 2 - Abuse Existing Tools, unusual CommandLines
-    if(newEvent['@class'] == 'CommandLineSighted') {
-        _session.query('SELECT FROM ' + newEvent['out'])
-        .on('data', (hupc)=>{
-            findCommandLineCluster(hupc) //if existing cluster not found, higer score
-        })    
+        case 'SysSighted': // Type 1 - SYS driver
+                handleSYS(newEvent);
+                break;       
+
+        case 'CommandLineSighted': // Type 2
+                handleCommandLine(newEvent);
+                break;
     }
-
     // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
     // if foreground, it may be signal of user behavior deviations
+    
+    // if BeforeExplorer +30
+    // if run under SYSTEM/admin +30 
 
 }

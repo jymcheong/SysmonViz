@@ -97,7 +97,7 @@ function updateParentOfSequence(targetRID, retry){
             console.error('Circular path detected!')
             return
         }
-        if(s['seq'].indexOf('smss.exe >') < 0) {
+        if(s['seq'].indexOf('smss.exe >') < 0 || s['seq'] == 'smss.exe > winlogon.exe') {
             console.log('Partial sequence found, retrying '+ retry + ' ' + s['seq'])
             setTimeout(function(){eval('updateParentOfSequence(targetRID,'+ retry + ')')},2000)
             return
