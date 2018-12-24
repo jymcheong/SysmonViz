@@ -94,6 +94,7 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
         score = s['Signature'] == 'Microsoft Windows' ? score : score + 20; 
         if(score > 0) {
             updateCase(score,s['Hostname'],newEvent['in'])
+            // Do a delay fetch of ProcessCreate via in('LoadedImage') eg. select ProcessType from (select expand(in('LoadedImage')) from #46:462)
         }
     })
 }
