@@ -50,8 +50,8 @@ function findCommandLineCluster(hupc){
     });
 }
 
-function linkToCase(startRID, endRID) {
-    _session.command('CREATE EDGE AddedTo FROM :h TO :c',
+function linkToCase(startRID, endRID, score) {
+    _session.command('CREATE EDGE AddedTo FROM :h TO :c SET score = ' + score,
     { params : {h: startRID, c: endRID}})
     .on('error', (err)=>{
         var msg = '' + err
@@ -68,63 +68,60 @@ function updateCase(score, hostname, eventRid) {
     @rid, Score WHERE Hostname = :h AND State = "new"',{ params : {sc: score, h: hostname}})
     .on('data',(c) => {
         console.log('\nCase id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
-        linkToCase(eventRid,c['@rid'])
+        linkToCase(eventRid,c['@rid'], score)
     })
 }
 
+// newEvent is a Sysmon DriverLoad event
 function handleSYS(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
     var score = 40;
-    _session.query('SELECT FROM ' + newEvent['in'])
-    .on('data', (s)=>{
-        console.log('Signature:' + s['Signature']);
-        console.log('SignatureStatus:' + s['SignatureStatus']);
-        score = s['SignatureStatus'] == 'Valid' ? score : score + 20;
-        score = s['Signature'] == 'Microsoft Windows' ? score : score + 20;
-        updateCase(score,s['Hostname'],newEvent['in'])
-    })
+    console.log('Signature:' + newEvent['Signature']);
+    console.log('SignatureStatus:' + newEvent['SignatureStatus']);
+    score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
+    score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20;
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'])
 }
 
 function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
     var score = 0;
-    _session.query('SELECT FROM ' + newEvent['in'])
-    .on('data', (s)=>{
-        console.log('Signature:' + s['Signature']);
-        console.log('SignatureStatus:' + s['SignatureStatus']);
-        score = s['SignatureStatus'] == 'Valid' ? score : score + 20;
-        score = s['Signature'] == 'Microsoft Windows' ? score : score + 20; 
-        if(score > 0) {
-            updateCase(score,s['Hostname'],newEvent['in'])
-            // Do a delay fetch of ProcessCreate via in('LoadedImage') eg. select ProcessType from (select expand(in('LoadedImage')) from #46:462)
-        }
-    })
+    console.log('Signature:' + newEvent['Signature']);
+    console.log('SignatureStatus:' + newEvent['SignatureStatus']);
+    score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
+    score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20; 
+    if(score > 0) {
+        updateCase(score,newEvent['Hostname'],newEvent['@rid'])
+        // Do a delay fetch of ProcessCreate via in('LoadedImage') eg. select ProcessType from (select expand(in('LoadedImage')) from #46:462)
+    }
 }
 
+function handleEXE(newEvent) {
+    var score = 30;
+    console.log('New EXE:' + newEvent['Image'])
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'])
+}
+
+
 // Type 2 - Abuse Existing Tools, unusual CommandLines
-function handleCommandLine(newEvent) {
-    _session.query('SELECT FROM ' + newEvent['out'])
-    .on('data', async (hupc)=>{
-        var score = await findCommandLineCluster(hupc) 
-        if(score > 0) {
-            if(score == 30) {
-                console.log('Found new CommandLine cluster!')
-            }
-            else {
-                console.log('Using score from existing CommandLine cluster!')
-            }
-            updateCase(score,hupc['Hostname'],newEvent['in'])
+async function handleCommandLine(hupc, inRid) {
+    var score = await findCommandLineCluster(hupc) 
+    if(score > 0) {
+        if(score == 30) {
+            console.log('Found new CommandLine cluster!')
         }
-    })    
+        else {
+            console.log('Using score from existing CommandLine cluster!')
+        }
+        updateCase(score,hupc['Hostname'],inRid)
+    }  
 }
 
 // Type 3 or could be triggered by users exploring new apps
 function handleSequence(newEvent) {
     var score = 30;
-    _session.query('SELECT FROM ' + newEvent['in'])
-    .on('data', (s)=>{
-        console.log('New sequence seen with:' + s['Image']);
-        updateCase(score,s['Hostname'],newEvent['in'])
-    })
+    console.log('New sequence seen with:' + newEvent['Image'])
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'])
 }
+
 
 function checkPersistence(eventRid){
 
@@ -135,34 +132,36 @@ function checkPrivilege(eventRid){
 }
 
 function eventHandler(newEvent) {   
+    var rid = newEvent['@class'] == 'CommandLineSighted' ? newEvent['out'] : newEvent['in'];
+    _session.query('SELECT FROM ' + rid)
+    .on('data', (event)=>{
+        console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + event['@rid'])
+        switch(newEvent['@class']) {
+            // Type 1 - Foreign Binaries; new Hashes
+            // Deal with EXE - Foreign or NOT
+            case 'ExeSighted': // Type 1 - DLL
+                handleEXE(event);
+                break;  
+
+            case 'DllSighted': // Type 1 - DLL
+                handleDLL(event);
+                break;   
     
-    _session.query('SELECT FROM ' + newEvent['in'])
-    .on('data', (pc)=>{
-        console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + pc['@rid'])
+            case 'SysSighted': // Type 1 - SYS driver
+                handleSYS(event);
+                break;       
+    
+            case 'CommandLineSighted': // Type 2
+                handleCommandLine(event, newEvent['in']);
+                break;
+            
+            // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
+            // if foreground, it may be due to user behavior deviations
+            case  'SequenceSighted':
+                handleSequence(event);
+                break;
+        }
     })
-
-    switch(newEvent['@class']) {
-        // Type 1 - Foreign Binaries; new Hashes
-        // Deal with EXE - Foreign or NOT
-        
-        case 'DllSighted': // Type 1 - DLL
-            handleDLL(newEvent);
-            break;   
-
-        case 'SysSighted': // Type 1 - SYS driver
-            handleSYS(newEvent);
-            break;       
-
-        case 'CommandLineSighted': // Type 2
-            handleCommandLine(newEvent);
-            break;
-        
-        // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
-        // if foreground, it may be due to user behavior deviations
-        case  'SequenceSighted':
-            handleSequence(newEvent);
-            break;
-    }
     
     // Apart from SYS event, all other event are (in)directly to ProcessCreate 
     // if ProcessCreate exists BeforeExplorer then +30
