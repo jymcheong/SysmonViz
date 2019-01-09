@@ -90,8 +90,14 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
     score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20; 
     if(score > 0) {
         updateCase(score,newEvent['Hostname'],newEvent['@rid'])
-        // Do a delay fetch of ProcessCreate via in('LoadedImage') eg. select ProcessType from (select expand(in('LoadedImage')) from #46:462)
     }
+
+    return new Promise( async(resolve, reject) => { 
+        _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])
+        .on('data', (event)=>{
+            resolve(event)
+        })
+    });
 }
 
 function handleEXE(newEvent) {
@@ -134,37 +140,42 @@ function checkPrivilege(eventRid){
 function eventHandler(newEvent) {   
     var rid = newEvent['@class'] == 'CommandLineSighted' ? newEvent['out'] : newEvent['in'];
     _session.query('SELECT FROM ' + rid)
-    .on('data', (event)=>{
+    .on('data', async (event)=>{
         console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + event['@rid'])
         switch(newEvent['@class']) {
             // Type 1 - Foreign Binaries; new Hashes
             // Deal with EXE - Foreign or NOT
             case 'ExeSighted': // Type 1 - DLL
-                handleEXE(event);
+                handleEXE(event); // event is a ProcessCreate
                 break;  
 
             case 'DllSighted': // Type 1 - DLL
-                handleDLL(event);
+                event = await handleDLL(event); // input event is a ImageLoad, output event is ProcessCreate
+                console.log('IntegrityLevel: ' + event['IntegrityLevel'])
                 break;   
     
             case 'SysSighted': // Type 1 - SYS driver
-                handleSYS(event);
-                break;       
+                handleSYS(event); // event is a DriverLoad
+                return; // no need for subsequent checks for Privilege & Persistence
     
             case 'CommandLineSighted': // Type 2
-                handleCommandLine(event, newEvent['in']);
+                handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
                 break;
             
             // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
             // if foreground, it may be due to user behavior deviations
             case  'SequenceSighted':
-                handleSequence(event);
+                handleSequence(event); // event is a ProcessCreate
                 break;
         }
     })
+
+    // Both DllSighted & CommandLineSighted cases, event is NOT a ProcessCreate, 
+    // need another fetch for subsequent Privilege & Persistence checking
     
-    // Apart from SYS event, all other event are (in)directly to ProcessCreate 
     // if ProcessCreate exists BeforeExplorer then +30
+    // Do a delay fetch of ProcessCreate via in('LoadedImage') eg. select ProcessType from (select expand(in('LoadedImage')) from #46:462)
+
     // if ProcessCreate.IntegrityLevel = High/System then +30 
 
 }
