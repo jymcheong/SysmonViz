@@ -119,6 +119,13 @@ async function handleCommandLine(hupc, inRid) {
         }
         updateCase(score,hupc['Hostname'],inRid)
     }  
+
+    return new Promise( async(resolve, reject) => { 
+        _session.query("select from " + inRid)
+        .on('data', (event)=>{
+            resolve(event)
+        })
+    });
 }
 
 // Type 3 or could be triggered by users exploring new apps
@@ -129,11 +136,11 @@ function handleSequence(newEvent) {
 }
 
 
-function checkPersistence(eventRid){
+function checkPersistence(processCreate){
 
 }
 
-function checkPrivilege(eventRid){
+function checkPrivilege(processCreate){
 
 }
 
@@ -159,7 +166,8 @@ function eventHandler(newEvent) {
                 return; // no need for subsequent checks for Privilege & Persistence
     
             case 'CommandLineSighted': // Type 2
-                handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
+                event = await handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
+                console.log('IntegrityLevel: ' + event['IntegrityLevel'])
                 break;
             
             // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
