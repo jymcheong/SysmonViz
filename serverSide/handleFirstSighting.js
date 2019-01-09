@@ -50,8 +50,8 @@ function findCommandLineCluster(hupc){
     });
 }
 
-function linkToCase(startRID, endRID, score) {
-    _session.command('CREATE EDGE AddedTo FROM :h TO :c SET score = ' + score,
+function linkToCase(startRID, endRID, score, reason) {
+    _session.command('CREATE EDGE AddedTo FROM :h TO :c SET score = ' + score + ", reason = '" + reason + "'",
     { params : {h: startRID, c: endRID}})
     .on('error', (err)=>{
         var msg = '' + err
@@ -63,12 +63,12 @@ function linkToCase(startRID, endRID, score) {
     })
 }
 
-function updateCase(score, hostname, eventRid) {
+function updateCase(score, hostname, eventRid, reason = '') {
     _session.command('Update Case SET Score = Score + :sc UPSERT RETURN AFTER \
     @rid, Score WHERE Hostname = :h AND State = "new"',{ params : {sc: score, h: hostname}})
     .on('data',(c) => {
         console.log('\nCase id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
-        linkToCase(eventRid,c['@rid'], score)
+        linkToCase(eventRid,c['@rid'], score, reason)
     })
 }
 
@@ -79,7 +79,7 @@ function handleSYS(newEvent) { // currently hardcoded to trust only Microsoft Wi
     console.log('SignatureStatus:' + newEvent['SignatureStatus']);
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
     score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20;
-    updateCase(score,newEvent['Hostname'],newEvent['@rid'])
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign SYS driver file")
 }
 
 function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
@@ -89,21 +89,18 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
     score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20; 
     if(score > 0) {
-        updateCase(score,newEvent['Hostname'],newEvent['@rid'])
-    }
-
-    return new Promise( async(resolve, reject) => { 
+        updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign DLL file")
         _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])
         .on('data', (event)=>{
-            resolve(event)
+            checkPrivilege(event)
         })
-    });
+    }
 }
 
 function handleEXE(newEvent) {
     var score = 30;
     console.log('New EXE:' + newEvent['Image'])
-    updateCase(score,newEvent['Hostname'],newEvent['@rid'])
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Foreign EXE file')
 }
 
 
@@ -117,31 +114,31 @@ async function handleCommandLine(hupc, inRid) {
         else {
             console.log('Using score from existing CommandLine cluster!')
         }
-        updateCase(score,hupc['Hostname'],inRid)
-    }  
-
-    return new Promise( async(resolve, reject) => { 
+        updateCase(score,hupc['Hostname'],inRid, 'Unusual command line')
         _session.query("select from " + inRid)
         .on('data', (event)=>{
-            resolve(event)
+            checkPrivilege(event);
         })
-    });
+    }  
 }
 
 // Type 3 or could be triggered by users exploring new apps
 function handleSequence(newEvent) {
     var score = 30;
     console.log('New sequence seen with:' + newEvent['Image'])
-    updateCase(score,newEvent['Hostname'],newEvent['@rid'])
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Unusual process sequence')
 }
-
 
 function checkPersistence(processCreate){
 
 }
 
 function checkPrivilege(processCreate){
-
+    var score = 0; 
+    score = processCreate['IntegrityLevel'] == 'High' ? score + 30 : score;
+    score = processCreate['IntegrityLevel'] == 'System' ? score + 30 : score;
+    console.log('IntegrityLevel: ' + processCreate['IntegrityLevel'])
+    if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'Possible Privilege-Escalation')
 }
 
 function eventHandler(newEvent) {   
@@ -157,33 +154,32 @@ function eventHandler(newEvent) {
                 break;  
 
             case 'DllSighted': // Type 1 - DLL
-                event = await handleDLL(event); // input event is a ImageLoad, output event is ProcessCreate
-                console.log('IntegrityLevel: ' + event['IntegrityLevel'])
-                break;   
+                handleDLL(event); // input event is a ImageLoad, output event is ProcessCreate
+                return;   
     
             case 'SysSighted': // Type 1 - SYS driver
                 handleSYS(event); // event is a DriverLoad
                 return; // no need for subsequent checks for Privilege & Persistence
     
             case 'CommandLineSighted': // Type 2
-                event = await handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
-                console.log('IntegrityLevel: ' + event['IntegrityLevel'])
-                break;
+                handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
+                return;
             
             // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
             // if foreground, it may be due to user behavior deviations
             case  'SequenceSighted':
                 handleSequence(event); // event is a ProcessCreate
                 break;
-        }
+        }       
+        // if ProcessCreate.IntegrityLevel = High/System then +30 
+        checkPrivilege(event); //for both ExeSighted & SequenceSighted only
     })
 
     // Both DllSighted & CommandLineSighted cases, event is NOT a ProcessCreate, 
     // need another fetch for subsequent Privilege & Persistence checking
     
     // if ProcessCreate exists BeforeExplorer then +30
-    // Do a delay fetch of ProcessCreate via in('LoadedImage') eg. select ProcessType from (select expand(in('LoadedImage')) from #46:462)
 
-    // if ProcessCreate.IntegrityLevel = High/System then +30 
+    
 
 }
