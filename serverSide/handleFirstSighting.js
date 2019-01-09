@@ -93,6 +93,7 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
         _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])
         .on('data', (event)=>{
             checkPrivilege(event)
+            checkBeforeExplorer(event)
         })
     }
 }
@@ -114,10 +115,11 @@ async function handleCommandLine(hupc, inRid) {
         else {
             console.log('Using score from existing CommandLine cluster!')
         }
-        updateCase(score,hupc['Hostname'],inRid, 'Unusual command line')
+        updateCase(score,hupc['Hostname'],inRid, 'Unusual Command Line')
         _session.query("select from " + inRid)
         .on('data', (event)=>{
-            checkPrivilege(event);
+            checkPrivilege(event)
+            checkBeforeExplorer(event)
         })
     }  
 }
@@ -126,11 +128,12 @@ async function handleCommandLine(hupc, inRid) {
 function handleSequence(newEvent) {
     var score = 30;
     console.log('New sequence seen with:' + newEvent['Image'])
-    updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Unusual process sequence')
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Unusual Process Sequence')
 }
 
-function checkPersistence(processCreate){
-
+function checkBeforeExplorer(processCreate){
+    var score = processCreate['ProcessType'] == 'BeforeExplorer' ? 30 : 0;
+    if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'Possible Persistence Before Explorer')
 }
 
 function checkPrivilege(processCreate){
@@ -173,13 +176,7 @@ function eventHandler(newEvent) {
         }       
         // if ProcessCreate.IntegrityLevel = High/System then +30 
         checkPrivilege(event); //for both ExeSighted & SequenceSighted only
-    })
-
-    // Both DllSighted & CommandLineSighted cases, event is NOT a ProcessCreate, 
-    // need another fetch for subsequent Privilege & Persistence checking
-    
-    // if ProcessCreate exists BeforeExplorer then +30
-
-    
-
+        // if ProcessCreate exists BeforeExplorer then +30
+        checkBeforeExplorer(event)
+    })    
 }
