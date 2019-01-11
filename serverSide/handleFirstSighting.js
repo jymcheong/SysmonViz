@@ -39,7 +39,7 @@ function eventHandler(newEvent) {
             case  'SequenceSighted':
                 handleSequence(event); // event is a ProcessCreate
                 // Score is assigned only after profiling stage... ie. this script is not executed during profiling stage.
-                _session.command('Update ' + newEvent['out'] + ' set Score = ' + _stage2Score)
+                _session.command('Update ' + newEvent['out'] + ' SET Score = ' + _stage2Score)
                 break;
 
             default:
