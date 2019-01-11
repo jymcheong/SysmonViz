@@ -131,11 +131,11 @@ function updateCase(score, hostname, eventRid, reason = '') {
 
 // newEvent is a Sysmon DriverLoad event
 function handleSYS(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
-    var score = _stage3Score;
+    var score = _stage2Score;
     console.log('Signature:' + newEvent['Signature']);
     console.log('SignatureStatus:' + newEvent['SignatureStatus']);
-    score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
-    score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20;
+    score = newEvent['SignatureStatus'] == 'Valid' ? score : score + _stage2Score;
+    score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + _stage2Score;
     updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign SYS Driver")
 }
 
@@ -143,8 +143,8 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
     var score = 0;
     console.log('Signature:' + newEvent['Signature']);
     console.log('SignatureStatus:' + newEvent['SignatureStatus']);
-    score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
-    score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20; 
+    score = newEvent['SignatureStatus'] == 'Valid' ? score : score + _stage2Score;
+    score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + _stage2Score; 
     if(score > 0) {
         updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign DLL")
         _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])

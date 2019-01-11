@@ -106,7 +106,7 @@ function updateParentOfSequence(targetRID, retry){
                          UPSERT RETURN AFTER @rid, Count, Score WHERE Sequence = :seq',{ params : {seq: s['seq']}})
         .on('data',(c)=> {
             console.log('Sequence count:'+ c['Count'] + ':' + s['seq'])
-            if(c['Count'] == 1) {
+            if(c['Count'] == 1) { // first-sighting
                 linkSequenceToProcessCreate(c['@rid'],targetRID,'SequenceSighted')
                 _session.query('SELECT AddSequenceWatchlist(' + targetRID + ')')
                 .on('error', (err)=>{
