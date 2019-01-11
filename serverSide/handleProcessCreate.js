@@ -115,7 +115,7 @@ function updateParentOfSequence(targetRID, retry){
             }
             else {
                 if(c['Score'] > 0) { // to handle 2nd patient, patient zero is handled by Count = 1
-                    linkSequenceToProcessCreate(targetRID,c['@rid'],'SequenceSighted') 
+                    linkSequenceToProcessCreate(c['@rid'],targetRID,'SequenceSighted') 
                 }
                 else {
                     linkSequenceToProcessCreate(targetRID,c['@rid'],'hasSequence')
