@@ -43,6 +43,8 @@ function eventHandler(newEvent) {
         checkPrivilege(event); //for both ExeSighted & SequenceSighted only
         // if ProcessCreate exists BeforeExplorer then +30
         checkBeforeExplorer(event)
+
+        checkNetworkEvents(event)
     })    
 }
 
@@ -128,7 +130,7 @@ function handleSYS(newEvent) { // currently hardcoded to trust only Microsoft Wi
     console.log('SignatureStatus:' + newEvent['SignatureStatus']);
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
     score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20;
-    updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign SYS driver file")
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign SYS Driver")
 }
 
 function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
@@ -138,12 +140,13 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
     score = newEvent['Signature'] == 'Microsoft Windows' ? score : score + 20; 
     if(score > 0) {
-        updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign DLL file")
+        updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign DLL")
         _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])
         .on('data', (event)=>{
             if(event['Image'].toLowerCase().indexOf('.exe') < 0) {
                 checkPrivilege(event)
                 checkBeforeExplorer(event)
+                checkNetworkEvents(event)
             }       
         })
     }
@@ -152,7 +155,7 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
 function handleEXE(newEvent) {
     var score = 30;
     console.log('New EXE:' + newEvent['Image'])
-    updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Foreign EXE file')
+    updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Foreign EXE')
 }
 
 
@@ -172,6 +175,7 @@ async function handleCommandLine(hupc, inRid) {
         .on('data', (event)=>{
             checkPrivilege(event)
             checkBeforeExplorer(event)
+            checkNetworkEvents(event)
         })
     }  
 }
@@ -197,4 +201,20 @@ function checkPrivilege(processCreate){
     if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'High-Privilege Execution')
 }
 
-
+function checkNetworkEvents(processCreate) {
+    console.log('Checking for outbound network comms for ' + processCreate['@rid'])
+    var checkNetwork = function() {
+        var sql = 'CREATE EDGE ConnectedTo FROM ' + processCreate['@rid'] + ' TO (SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '")'
+        //console.log('SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '"')
+        _session.query('SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '"')
+        .all()
+        .then((event)=>{
+            if(event.length > 0) {
+                console.log('Found Outbound Network Communications')
+                _session.command(sql)
+                updateCase(20,processCreate['Hostname'],processCreate['@rid'], 'Outbound Network Communications')
+            }
+        })    
+    }
+    setTimeout(checkNetwork, 20000) // ProcessCreate will be added to watchlist anyway for real-time linking
+}
