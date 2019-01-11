@@ -1,6 +1,10 @@
 const jw = require('jaro-winkler');
 const _threshold = 0.80
 const fs = require("fs")
+
+const _stage2Score = 20
+const _stage3Score = 40
+
 eval(fs.readFileSync(__dirname + '/common.js')+'');
 
 startLiveQuery("select from SightedTracking")
@@ -34,6 +38,8 @@ function eventHandler(newEvent) {
             // if foreground, it may be due to user behavior deviations
             case  'SequenceSighted':
                 handleSequence(event); // event is a ProcessCreate
+                // Score is assigned only after profiling stage... ie. this script is not executed during profiling stage.
+                _session.command('Update ' + newEvent['out'] + ' set Score = ' + _stage2Score)
                 break;
 
             default:
@@ -70,27 +76,27 @@ function findCommandLineCluster(hupc){
         .then((results)=>{
             var found = false
             var i = -1
-            var _clusterid = ''
-            var _clusterscore = 0
-            var _prevSimilarity = 0
+            var clusterid = ''
+            var clusterscore = 0
+            var prevSimilarity = 0
             for(i = 0; i < results.length; i++){
                 var similarity = jw(hupc['CommandLine'],results[i]['CommandLine'])
                 if(similarity > _threshold) {
                     found = true;
-                    if(similarity > _prevSimilarity) {
-                        _clusterid = results[i]['@rid']
-                        _clusterscore = results[i]['Score']
-                        _prevSimilarity = similarity
+                    if(similarity > prevSimilarity) {
+                        clusterid = results[i]['@rid']
+                        clusterscore = results[i]['Score']
+                        prevSimilarity = similarity
                     }
                 }
             }
             if(found){
-                console.log('Found similar commandline with score: '+ _clusterscore + ', creating link from ' + hupc['@rid'] + ' to ' + _clusterid)
-                linkSimilarTo(hupc['@rid'], _clusterid)
-                resolve(_clusterscore) // assuming known malicious CommandLine is assigned with score
+                console.log('Found similar commandline with score: '+ clusterscore + ', creating link from ' + hupc['@rid'] + ' to ' + clusterid)
+                linkSimilarTo(hupc['@rid'], clusterid)
+                resolve(clusterscore) // assuming known malicious CommandLine is assigned with score
             }
             else {
-                _session.command('INSERT INTO CommandLineCluster SET CommandLine = :c', 
+                _session.command('INSERT INTO CommandLineCluster SET CommandLine = :c, Score = ' + _stage2Score, 
                 { params : {c: hupc['CommandLine']}})
                 .on('data',(cc) =>{
                     linkSimilarTo(hupc['@rid'],cc['@rid'])
@@ -125,7 +131,7 @@ function updateCase(score, hostname, eventRid, reason = '') {
 
 // newEvent is a Sysmon DriverLoad event
 function handleSYS(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
-    var score = 40;
+    var score = _stage3Score;
     console.log('Signature:' + newEvent['Signature']);
     console.log('SignatureStatus:' + newEvent['SignatureStatus']);
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + 20;
@@ -153,7 +159,7 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
 }
 
 function handleEXE(newEvent) {
-    var score = 30;
+    var score = _stage2Score;
     console.log('New EXE:' + newEvent['Image'])
     updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Foreign EXE')
 }
@@ -163,7 +169,7 @@ function handleEXE(newEvent) {
 async function handleCommandLine(hupc, inRid) {
     var score = await findCommandLineCluster(hupc) 
     if(score > 0) {
-        if(score == 30) {
+        if(score == _stage2Score) {
             console.log('Found new CommandLine cluster!')
             updateCase(score,hupc['Hostname'],inRid, 'Unusual CommandLine')
         }
@@ -182,21 +188,21 @@ async function handleCommandLine(hupc, inRid) {
 
 // Type 3 or could be triggered by users exploring new apps
 function handleSequence(newEvent) {
-    var score = 30;
+    var score = _stage2Score;
     console.log('New sequence seen with:' + newEvent['Image'])
     updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Unusual Process Sequence')
 }
 
 function checkBeforeExplorer(processCreate){
     console.log('checking before explorer type... ' + processCreate['ProcessType'])
-    var score = processCreate['ProcessType'] == 'BeforeExplorer' ? 30 : 0;
+    var score = processCreate['ProcessType'] == 'BeforeExplorer' ? _stage3Score : 0;
     if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'Executed Before Explorer')
 }
 
 function checkPrivilege(processCreate){
     var score = 0; 
-    score = processCreate['IntegrityLevel'] == 'High' ? score + 30 : score;
-    score = processCreate['IntegrityLevel'] == 'System' ? score + 30 : score;
+    score = processCreate['IntegrityLevel'] == 'High' ? score + _stage3Score : score;
+    score = processCreate['IntegrityLevel'] == 'System' ? score + _stage3Score : score;
     console.log('IntegrityLevel: ' + processCreate['IntegrityLevel'])
     if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'High-Privilege Execution')
 }
@@ -212,7 +218,7 @@ function checkNetworkEvents(processCreate) {
             if(event.length > 0) {
                 console.log('Found Outbound Network Communications')
                 _session.command(sql)
-                updateCase(20,processCreate['Hostname'],processCreate['@rid'], 'Outbound Network Communications')
+                updateCase(_stage2Score,processCreate['Hostname'],processCreate['@rid'], 'Outbound Network Communications')
             }
         })    
     }

@@ -103,7 +103,7 @@ function updateParentOfSequence(targetRID, retry){
             return
         }
         _session.command('UPDATE ParentOfSequence set Sequence = :seq, Count = Count + 1 \
-                         UPSERT RETURN AFTER @rid, Count WHERE Sequence = :seq',{ params : {seq: s['seq']}})
+                         UPSERT RETURN AFTER @rid, Count, Score WHERE Sequence = :seq',{ params : {seq: s['seq']}})
         .on('data',(c)=> {
             console.log('Sequence count:'+ c['Count'] + ':' + s['seq'])
             if(c['Count'] == 1) {
@@ -114,8 +114,12 @@ function updateParentOfSequence(targetRID, retry){
                 })
             }
             else {
-                //not error; the link direction differs from SequenceSighted
-                linkSequenceToProcessCreate(targetRID,c['@rid'],'hasSequence') 
+                if(c['Score'] > 0) { // to handle 2nd patient, patient zero is handled by Count = 1
+                    linkSequenceToProcessCreate(targetRID,c['@rid'],'SequenceSighted') 
+                }
+                else {
+                    linkSequenceToProcessCreate(targetRID,c['@rid'],'hasSequence')
+                }
             }
         })
     })
