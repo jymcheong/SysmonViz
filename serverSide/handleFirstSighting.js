@@ -23,16 +23,16 @@ function eventHandler(newEvent) {
                 break;  
 
             case 'DllSighted': // Type 1 - DLL
-                handleDLL(event); // input event is a ImageLoad, output event is ProcessCreate
-                return;   
+                event = await handleDLL(event); // input event is a ImageLoad, output event is ProcessCreate
+                break;   
     
             case 'SysSighted': // Type 1 - SYS driver
                 handleSYS(event); // event is a DriverLoad
                 return; // no need for subsequent checks for Privilege & Persistence
     
             case 'CommandLineSighted': // Type 2
-                handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
-                return;
+                event = await handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
+                break;
             
             // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
             // if foreground, it may be due to user behavior deviations
@@ -44,13 +44,13 @@ function eventHandler(newEvent) {
 
             default:
                 return;
-        }       
-        // if ProcessCreate.IntegrityLevel = High/System then +30 
-        checkPrivilege(event); //for both ExeSighted & SequenceSighted only
-        // if ProcessCreate exists BeforeExplorer then +30
-        checkBeforeExplorer(event)
-
-        checkNetworkEvents(event)
+        }  
+        if(event === undefined) return     
+        if(event['@class'] == 'ProcessCreate') {
+            checkPrivilege(event); //for both ExeSighted & SequenceSighted only
+            checkBeforeExplorer(event)
+            checkNetworkEvents(event)
+        }
     })    
 }
 
@@ -121,11 +121,20 @@ function linkToCase(startRID, endRID, score, reason) {
 }
 
 function updateCase(score, hostname, eventRid, reason = '') {
-    _session.command('Update Case SET Score = Score + :sc UPSERT RETURN AFTER \
-    @rid, Score WHERE Hostname = :h AND State = "new"',{ params : {sc: score, h: hostname}})
-    .on('data',(c) => {
-        console.log('\nCase id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
-        linkToCase(eventRid,c['@rid'], score, reason)
+    _session.query('SELECT FROM AddedTo WHERE reason = :r AND out = :o',
+    { params : {r: reason, o: eventRid}})
+    .all()
+    .then((events)=>{
+        if(events.length > 0) {
+            console.log(reason + ' already added for ' + eventRid)
+            return
+        }
+        _session.command('Update Case SET Score = Score + :sc UPSERT RETURN AFTER \
+        @rid, Score WHERE Hostname = :h AND State = "new"',{ params : {sc: score, h: hostname}})
+        .on('data',(c) => {
+            console.log('\nCase id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
+            linkToCase(eventRid,c['@rid'], score, reason)
+        })
     })
 }
 
@@ -150,12 +159,11 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
         _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])
         .on('data', (event)=>{
             if(event['Image'].toLowerCase().indexOf('.exe') < 0) {
-                checkPrivilege(event)
-                checkBeforeExplorer(event)
-                checkNetworkEvents(event)
+                return new Promise( async(resolve, reject) => { resolve(event) })
             }       
         })
     }
+    else { return new Promise( async(resolve, reject) => { resolve(newEvent) })  }
 }
 
 function handleEXE(newEvent) {
@@ -179,11 +187,10 @@ async function handleCommandLine(hupc, inRid) {
         }
         _session.query("select from " + inRid)
         .on('data', (event)=>{
-            checkPrivilege(event)
-            checkBeforeExplorer(event)
-            checkNetworkEvents(event)
+            return new Promise( async(resolve, reject) => { resolve(event) })
         })
-    }  
+    }
+    else { return new Promise( async(resolve, reject) => { resolve(hupc) })  }
 }
 
 // Type 3 or could be triggered by users exploring new apps
