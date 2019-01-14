@@ -23,7 +23,7 @@ function eventHandler(newEvent) {
                 break;  
 
             case 'DllSighted': // Type 1 - DLL
-                event = await handleDLL(event); // input event is a ImageLoad, output event is ProcessCreate
+                event = await handleDLL(event); // if score > 0 then output event is ProcessCreate, else ImageLoad
                 break;   
     
             case 'SysSighted': // Type 1 - SYS driver
@@ -34,8 +34,8 @@ function eventHandler(newEvent) {
                 event = await handleCommandLine(event, newEvent['in']); //event is a HUPC object, 2nd param is a ProcessCreate
                 break;
             
-            // Type 3 - Contents Exploitation that triggers new/usual process sequences that are background
-            // if foreground, it may be due to user behavior deviations
+            // Type 3 - Contents Exploitation that triggers new/usual process sequences
+            // if process is foreground, then it may be due to user behavior deviations
             case  'SequenceSighted':
                 handleSequence(event); // event is a ProcessCreate
                 // Score is assigned only after profiling stage... ie. this script is not executed during profiling stage.
