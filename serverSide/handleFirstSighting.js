@@ -101,7 +101,7 @@ function findCommandLineCluster(hupc){
                 .on('data',(cc) =>{
                     linkSimilarTo(hupc['@rid'],cc['@rid'])
                 })
-                resolve(30)
+                resolve(_stage2Score)
             }
         })
     });
