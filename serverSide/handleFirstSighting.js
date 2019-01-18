@@ -11,7 +11,8 @@ startLiveQuery("select from SightedTracking")
 
 // startLiveQuery will call this..
 function eventHandler(newEvent) {   
-    var rid = newEvent['@class'] == 'CommandLineSighted' ? newEvent['out'] : newEvent['in'];
+    var rid = newEvent['@class'] == 'CommandLineSighted' || newEvent['@class'] == 'LateralCommunication' ? 
+              newEvent['out'] : newEvent['in'];
     _session.query('SELECT FROM ' + rid)
     .on('data', async (event)=>{
         console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + event['@rid'])
@@ -42,6 +43,9 @@ function eventHandler(newEvent) {
                 _session.command('Update ' + newEvent['out'] + ' SET Score = ' + _stage2Score)
                 break;
 
+            case 'LateralCommunication':
+                handleLateralComm(event);
+                break;
             default:
                 return;
         }  
@@ -198,6 +202,13 @@ function handleSequence(newEvent) {
     var score = _stage2Score;
     console.log('New sequence seen with:' + newEvent['Image'])
     updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Unusual Process Sequence')
+}
+
+function handleLateralComm(newEvent) {
+    if(newEvent['in_DestinationPortSighted'] != undefined) {
+        console.log('\nFound lateral communication...\n')
+        updateCase(_stage3Score,newEvent['Hostname'],newEvent['@rid'], 'Lateral Movement')
+    }
 }
 
 function checkBeforeExplorer(processCreate){
