@@ -15,7 +15,7 @@ function eventHandler(newEvent) {
               newEvent['out'] : newEvent['in'];
     _session.query('SELECT FROM ' + rid)
     .on('data', async (event)=>{
-        console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + event['@rid'])
+        //console.log(newEvent['out'] + ':' + newEvent['@class'] + ':' + event['@rid'])
         switch(newEvent['@class']) {
             // Type 1 - Foreign Binaries; new Hashes
             // Deal with EXE - Foreign or NOT
@@ -206,6 +206,9 @@ function handleSequence(newEvent) {
 
 function handleLateralComm(newEvent) {
     if(newEvent['in_DestinationPortSighted'] != undefined) {
+        if(newEvent['Image'] == 'C:\\Windows\\System32\\svchost.exe' && newEvent['SourcePortName'] == 'ssdp') {
+            return
+        }
         console.log('\nFound lateral communication...\n')
         updateCase(_stage3Score,newEvent['Hostname'],newEvent['@rid'], 'Lateral Movement')
     }

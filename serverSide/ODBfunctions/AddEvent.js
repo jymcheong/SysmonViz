@@ -49,6 +49,14 @@
     }
   }
 
+
+function getPathNoFilename(fullpath) {
+	var fps = fullpath.split("\\")
+    var fn = fps[fps.length - 1]
+    return fullpath.replace(fn,"")
+}
+	
+
   var logline = unescape(jsondata)
   try {
     var e = rewriteProperties(JSON.parse(logline)); 
@@ -72,8 +80,9 @@
       delete e['ProcessID']
       var re = /ProcessId: (\d+)/g
       var match = re.exec(e['Message'])
-      if(match != null)
-          e['ProcessId'] = parseInt(match[1])        
+      if(match != null) e['ProcessId'] = parseInt(match[1]);
+      if(e["SourceProcessGUID"]) e["SourceProcessGuid"] = e["SourceProcessGUID"]; 
+      if(e["TargetProcessGUID"]) e["TargetProcessGuid"] = e["TargetProcessGUID"]; 
   }
 
   // DataFusion UAT events
@@ -98,12 +107,37 @@
       delete e['ProcessID']
       try {
       	var uat = JSON.parse(e['Message'])
+        for(var k in uat){
+          oldk = k // we don't want numbers as column names
+          k = /^\d+$/.test(k) ? 'column'+ k : k;
+          if(typeof uat[oldk] === 'object') {
+            if(e['EventID']==3 || e['EventID']==4) {
+               var transportProtocol = e['EventID']==3 ? 'TCP' : 'UDP';
+               var lp = db.command('UPDATE NetworkListeningPort set Count = Count + 1 \
+						UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND TransportProtocol = ? \
+						AND LocalAddress = ? AND LocalPort = ? AND ProcessId = ? AND ProcessName = ?',
+                       	e['Hostname'], transportProtocol, uat[oldk]['LocalAddress'],uat[oldk]['LocalPort'],uat[oldk]['ProcessId'],uat[oldk]['ProcessName'])
+               if(lp[0].getProperty('Count') == 1){
+                    print('Found new listening port ' + uat[oldk]['LocalPort'] + ' for ' + e['Hostname'])
+               		db.command('CREATE EDGE ListeningPortSighted FROM ? TO (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? order by id desc LIMIT 1)', lp[0].getProperty('@rid'),e['Hostname'], uat[oldk]['ProcessId'])
+               }
+            }
+            if(e['EventID']==1 || e['EventID']==2) {
+          		print('\nNetworkDetails EventID = ' + e['EventID'])
+              	print('Physical address: ' + uat[oldk]['PhysicalAddress'] + '\n')
+              	for(var k2 in uat[oldk]['IPAddresses']) {
+                  print(k2 + ' has a value of ' + uat[oldk]['IPAddresses'][k2])
+                  db.command('UPDATE NetworkAddress set Count = Count + 1 \
+						      UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND PhysicalAddress = ? AND IpAddress = ?',
+                       	      e['Hostname'], uat[oldk]['PhysicalAddress'],uat[oldk]['IPAddresses'][k2])
+                }
+            }
+          }
+          e[k] = uat[oldk]
+      	}
       }
       catch(err){
-      	print(Date() + ' Offending DataFuseNetwork ' + e['Message'])
-      }
-      for(var k in uat){
-          e[k] = uat[k]
+      	print(Date() + ' Offending DataFuseNetwork ' + e['Message'] + '\n' + err)
       }
   }   
 
@@ -137,24 +171,33 @@
                db.command('UPDATE TypeA_id_cache SET explorer_id = ? UPSERT \
 						   WHERE Hostname = ?',r[0].getProperty('id'),e['Hostname'])
             }
+      		
       		// ImageHashes tracking
-      		var u = db.command('UPDATE ImageHashes set Image = ?, Hashes = ?, Count = Count + 1 \
+      		var u = db.command('UPDATE ImageHashes set Count = Count + 1 \
 								UPSERT RETURN AFTER @rid, Count WHERE Image = ? AND Hashes = ?',
-                       			e['Image'],e['Hashes'],e['Image'],e['Hashes'])
+                       			e['Image'],e['Hashes'])
             u = db.command('UPDATE ImageHashes set HashCount = HashCount + 1 \
-							RETURN AFTER @rid, Count, HashCount WHERE Hashes = ?',e['Hashes'])
+							RETURN AFTER @rid, Count, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
 
       		var IHT_rid = u[0].getProperty('@rid')
-      		if(u[0].getProperty('HashCount') == 1) 
-            {
-                print()
-              	print(Date() + " EXE first-sighting of " + e['Image'])
-                print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
-              	retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-                print()
-                // find any FileCreate that can be link to this sighting
-              	db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-                print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
+            print("\n" + getPathNoFilename(e['Image']) + "\n")
+            if(u[0].getProperty('BaseLined') == false) 
+            {   
+              	print()
+                var otherbaseline = db.query('SELECT FROM ImageHashes where Image.indexOf(?) > -1 AND BaseLined = true'
+                                             ,getPathNoFilename(e['Image']))
+                if(otherbaseline.length == 0) {
+                    print(Date() + " EXE first-sighting of " + e['Image'])
+                    print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
+                    retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+                    print()
+                        // find any FileCreate that can be link to this sighting
+                    db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+                    print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
+                }
+                else {
+                    retry("db.command('UPDATE ? SET BaseLined = true', IHT_rid)")
+                }
             }
       		// CommandLine tracking
       		u = db.command('UPDATE HostUserPrivilegeCommandLine set Count = Count + 1 \
@@ -163,19 +206,10 @@
                            ,e['Hostname'],e['User'],e['CommandLine'],e['IntegrityLevel'])
       
 		    var HUPC_rid = u[0].getProperty('@rid')
-      		if(u[0].getProperty('Count') == 1) {
-            	 print()
-                 print(Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
-              	 retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-              	 retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")
-                 // find any FileCreate that can be link to this sighting
-              	 db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-                 print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
-            }
-      
-      		// Check Process Type 
+
+            // Check Process Type 
       		var t = db.query('select from TypeA_id_cache')
-      		if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
+            if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
                && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
             	print(' Created PendingType for ' + r[0].getProperty('@rid'))
               	retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
@@ -186,36 +220,58 @@
               	retry("db.command('UPDATE ? SET ProcessType = ?', r[0].getProperty('@rid'),'BeforeExplorer')")
             }
       		print('')
+            
+      		// assign CommandLine cluster score if any
+            var score = db.query('select from commandlinecluster where Score > 0 AND CommandLine = ?',e['CommandLine'])
+            print('length of score: ' + score.length + ' for ' + e['CommandLine'])
+            if(score.length > 0) print('score ' + score[0].getProperty('Score'))
+      
+      		if(u[0].getProperty('Count') == 1 || score.length > 0) {
+                 print("\n" + Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
+              	 retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+              	 retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")
+                 // find any FileCreate that can be link to this sighting
+              	 db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+                 print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
+            }
+      
             break;
       
     case "ImageLoad": 
       	  // track Full-path vs Hashes
-      	  var u = db.command('UPDATE ImageLoadedHashes set ImageLoaded = ?, Hashes = ?, Count = Count + 1 \
+      	  var u = db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
 						UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
                        e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
           
           // track ONLY Hashes
           u = db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
-						UPSERT RETURN AFTER @rid, HashCount WHERE Hashes = ?',e['Hashes'])
+						UPSERT RETURN AFTER @rid, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
           
-          if(u[0].getProperty('HashCount') == 1) {
-              var r = db.command(stmt); // insert the ImageLoad log line
-              print(Date() + " Dll First Sighting of " + e['ImageLoaded'])
-              retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-              retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
-              print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))      
-              
-              db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-              print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
+          if(u[0].getProperty('BaseLined') == false) {
+              var ilsplit = e['ImageLoaded'].split("\\")
+              var otherbaseline = db.query('SELECT FROM ImageLoadedHashes WHERE ImageLoaded.indexOf(?) > -1 AND BaseLined = true', 
+                    			  getPathNoFilename(e['ImageLoaded']) )
+              if(otherbaseline.length == 0) {
+                  var r = db.command(stmt); // insert the ImageLoad log line
+                  print(Date() + " Dll First Sighting of " + e['ImageLoaded'] + " on " + e['Hostname'])
+                  retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
+                  retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
+                  print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))      
+                  db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+                  print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
+              }
+              else {
+                  db.command('UPDATE ? SET BaseLined = true', u[0].getProperty('@rid') )
+              }
           }//*/
       	  break;
       
     case "DriverLoad": //ID6
-      	  var u = db.command('UPDATE ImageLoadedHashes set ImageLoaded = ?, Hashes = ?, Count = Count + 1 \
-						UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
+      	  var u = db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
+						UPSERT RETURN AFTER @rid, Count, BaseLined WHERE ImageLoaded = ? AND Hashes = ?',
                        e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
           
-          if(u[0].getProperty('Count') == 1) {
+          if(u[0].getProperty('BaseLined') == false) {
             	print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
             	retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
             	retry("db.command('CREATE EDGE UsedAsDriver FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'],r[0].getProperty('@rid'),r[0].getProperty('@rid'))")
@@ -235,40 +291,43 @@
 		 db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?) TO ?',e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
          print('Done CreatedThread')
          break;
-           
-		// shifted to LinkUAT, which is called by handleUserActions.js
-/*    case 'UserActionTracking':
-          break;
       
-          //print(Date() + ' Start UAT Processing')
-          if(e['Action']=='Foreground Transition'){ 
-              retry("db.command('CREATE EDGE SwitchedFrom FROM (SELECT FROM ProcessCreate WHERE ProcessId = ? AND Hostname = ? Order By id Desc Limit 1) TO ?',e['FromProcessId'],e['Hostname'],r[0].getProperty('@rid'))")
-              
-             //print('Linking SwitchedTo for ' + e['ToProcessId'])
-             retry("db.command('CREATE EDGE SwitchedTo FROM ? TO (SELECT FROM ProcessCreate WHERE ProcessId = ? AND Hostname = ? Order By id Desc  LIMIT 1)',r[0].getProperty('@rid'),e['ToProcessId'],e['Hostname'])")
-             
-          }
-          else { // other UAT actions
-              var pc = db.query('SELECT FROM ProcessCreate \
-					   WHERE Hostname = ? AND ProcessId = ? Order By id Desc LIMIT 1',e['Hostname'],e['ProcessId'])
-              if(pc.length == 0) return //means somehow ProcessCreate was missing.
-            
-              print('Linking ' + e['Action'] + ' to ' + pc[0].getProperty('@rid') + ' ' + pc[0].getProperty('CommandLine') + ' ' + e['ProcessId'])
-              retry("db.command('CREATE EDGE ActedOn FROM ? TO ?',r[0].getProperty('@rid'),pc[0].getProperty('@rid'))")
-              
-              // handle PendingType
-              if(e['Action'].indexOf('Click') > 0 || e['Action'].indexOf('Press')) {
-                  var checkPendingType = '' + pc[0]
-                  if(checkPendingType.indexOf('in_PendingType:[]') < 0 && checkPendingType.indexOf('in_PendingType') > 0){
-                  		retry("db.command('UPDATE ? SET ProcessType = ?', pc[0].getProperty('@rid'),'AfterExplorerForeground')")
-                        print("Set ProcessType to AfterExplorerFG for " + pc[0].getProperty('CommandLine'))
-                    	retry("db.command('DELETE EDGE ' + pc[0].getProperty('in_PendingType'))")
-                  }
-                  //print(Date() + ' End UAT update PC')
-              }
-              
-          } 
-          break;     */
+    case "NetworkConnect":       
+         var u = db.command('UPDATE NetworkDestinationPort set Count = Count + 1 \
+							UPSERT RETURN AFTER @rid, Count WHERE Image = ? AND Hostname = ? AND Port = ?',r[0].getProperty('Image'),r[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
+         
+         if(u[0].getProperty('Count') == 1) {
+         	//print('Destination Network Port Sighting')
+            //print(r[0].getProperty('Hostname') + ':' + r[0].getProperty('Image') + ' to port: ' + r[0].getProperty('DestinationPort'))
+            retry("db.command('CREATE EDGE DestinationPortSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+         }
+         //print('Checking lateral communication')
+      	 var destination = db.query('SELECT FROM NetworkAddress WHERE IpAddress = ? \
+									 AND Hostname <> ?',r[0].getProperty('DestinationIp'),r[0].getProperty('Hostname'))
+         if(destination.length > 0) {
+         	//print('Lateral communication detected!')
+            var lateral = db.query('SELECT FROM listeningport WHERE Hostname = ? AND \
+						  LocalPort = ?',destination[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
+            if(lateral.length > 0) {
+            	//print('Destination port detected')
+                retry("db.command('CREATE EDGE LateralCommunication FROM ? TO ?',r[0].getProperty('@rid'),lateral[0].getProperty('@rid'))")
+                retry("db.command('CREATE EDGE ConnectedTo FROM (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessGuid = ?) TO ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'), r[0].getProperty('@rid'))")
+                var lpc = db.query('SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? \
+									AND Image.IndexOf(?) > -1 order by id desc LIMIT 1', 
+                                   lateral[0].getProperty('Hostname') ,lateral[0].getProperty('ProcessId'), lateral[0].getProperty('ProcessName'))
+                if(lpc.length > 0) {
+                    if(lpc[0].getProperty('Image').indexOf('svchost') < 0) 
+                      		print('Found listening process ' + lpc[0].getProperty('Image') + ' on ' + lpc[0].getProperty('Hostname'))
+                    var lateraledges = db.query('select from (select expand(in_BoundTo) from ?) \
+					where out = ? AND in = ?', lpc[0].getProperty('@rid'), lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
+                    if(lateraledges.length == 0) {
+                        print('Adding BoundTo edge between ' + lateral[0].getProperty('@rid') + ' to ' + lpc[0].getProperty('@rid'))
+                    	db.command('CREATE EDGE BoundTo FROM ? TO ?', lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
+                    }
+                } 
+            }
+         }
+         break;           
   }
 
   return

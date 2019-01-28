@@ -1,3 +1,14 @@
+
+var p = "C:\\Users\\q\\AppData\\Local\\Microsoft\\OneDrive\\18.192.0920.0015\\Qt5Qml.dll"
+
+ps = p.split("\\")
+
+filename = ps[ps.length-1]
+
+console.log(p.replace(filename, ""))
+
+return 
+
 const fs = require("fs")
 eval(fs.readFileSync(__dirname + '/common.js')+'')
 const jw = require('jaro-winkler');
