@@ -3,25 +3,15 @@ eval(fs.readFileSync(__dirname + '/common.js')+'')
 const jw = require('jaro-winkler');
 const _threshold = 0.80
 
-_sessionStarted = function(){
-    _session.query("select from hupc where Count = 1 order by CommandLine")
-    .all()
-    .then((hupc)=> {
-        for(var i = 0; i < hupc.length; i++) {
-            _hupcQ.push(hupc[i])
-        }
-        processQitem()
-    })
-}
-
-startLiveQuery("select from CommandLineCluster")
+startLiveQuery("select from hupc")
 
 function eventHandler(newEvent) { 
     console.log(newEvent)
+    _hupcQ.push(newEvent)
+    processQitem()
 }
 
 var _hupcQ = []
-
 
 function newCluster(hupc){
     _session.command('INSERT INTO CommandLineCluster SET CommandLine = :c', 
@@ -30,7 +20,7 @@ function newCluster(hupc){
         _session.command('CREATE EDGE SimilarTo FROM :h TO :c',
         { params : {h: hupc['@rid'], c: cc['@rid']}})
         .on('data', (st)=>{
-            processQitem()
+            console.log('Linked to existing cluster')
         })
     })
 }
@@ -45,23 +35,33 @@ function processQitem() {
     .then((results)=>{
         var found = false
         var i = -1
+        var clusterid = ''
+        var clusterscore = 0
+        var prevSimilarity = 0
         for(i = 0; i < results.length; i++){
-            if(jw(hupc['CommandLine'],results[i]['CommandLine']) > _threshold) {
+            var similarity = jw(hupc['CommandLine'],results[i]['CommandLine'])
+            if(similarity > _threshold) {
                 found = true;
-                break;
+                if(similarity > prevSimilarity) {
+                    clusterid = results[i]['@rid']
+                    clusterscore = results[i]['Score']
+                    prevSimilarity = similarity
+                }
             }
         }
         if(found){
-            console.log('Create link from ' + hupc['@rid'] + ' to ' + results[i]['@rid'])
+            console.log('Create link from ' + hupc['@rid'] + ' to ' + clusterid)
             _session.command('CREATE EDGE SimilarTo FROM :h TO :c',
-            { params : {h: hupc['@rid'], c: results[i]['@rid']}})
+            { params : {h: hupc['@rid'], c: clusterid}})
             .on('data', (st)=>{
-                processQitem()
+                console.log('Linked to existing cluster')
+                //processQitem()
             })
         }
         else {
             console.log('Need to create new cluster!')
             newCluster(hupc)
+            //processQitem()
         }
     })
 }

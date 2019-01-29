@@ -49,6 +49,14 @@
     }
   }
 
+function fixCircular(id, rid) {
+	var smss = db.query('select from pc Where id < ? AND Image like "%smss.exe" AND out_ParentOf.size() = 0 order by id desc limit 1',id)
+    if(smss.length == 0) { print("Cannot fix circular path"); return; }
+    db.command('update ' + rid + ' SET ParentProcessGuid = ?, ParentProcessId = ?, ParentImage = ?, ParentCommandLine = ?'
+               	,smss[0].getProperty('ProcessGuid'), smss[0].getProperty('ProcessId')
+                ,smss[0].getProperty('Image'), smss[0].getProperty('CommandLine'))
+	print('Fixed circular parentOf!')
+}
 
 function getPathNoFilename(fullpath) {
 	var fps = fullpath.split("\\")
@@ -158,14 +166,23 @@ function getPathNoFilename(fullpath) {
   switch(classname) {
     case "ProcessCreate":
       		var current_id = r[0].getProperty('id')
-      		// update SMSS.exe ID into cache table to find Type A process
+            
+            //fix circular ParentOf issue
+            if(r[0].getProperty('ParentImage') == 'C:\\Windows\\System32\\svchost.exe' 
+               	&& r[0].getProperty('Image') == 'C:\\Windows\\System32\\wininit.exe') {
+            	print('fixing circular parentOf...')
+               	fixCircular(current_id, r[0].getProperty('@rid') )
+            }
+      
+            // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
       		print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
       		if(e['ParentImage'] == "System") {// smss.exe
                 print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
                 db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
 							WHERE Hostname = ?',r[0].getProperty('id'),e['Hostname'])
             }
-      		// update explorer.exe ID into cache table  to find Type A process      
+      
+      		// update explorer.exe ID into cache table  to find Type A (BeforeExplorer) process      
             if(e['ParentImage'].indexOf("Windows\\System32\\userinit.exe") > 0) {// explorer.exe
                print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
                db.command('UPDATE TypeA_id_cache SET explorer_id = ? UPSERT \
@@ -180,7 +197,7 @@ function getPathNoFilename(fullpath) {
 							RETURN AFTER @rid, Count, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
 
       		var IHT_rid = u[0].getProperty('@rid')
-            print("\n" + getPathNoFilename(e['Image']) + "\n")
+           
             if(u[0].getProperty('BaseLined') == false) 
             {   
               	print()
@@ -192,13 +209,15 @@ function getPathNoFilename(fullpath) {
                     retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
                     print()
                         // find any FileCreate that can be link to this sighting
-                    db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+                    db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
+                               ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
                     print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
                 }
                 else {
                     retry("db.command('UPDATE ? SET BaseLined = true', IHT_rid)")
                 }
             }
+      
       		// CommandLine tracking
       		u = db.command('UPDATE HostUserPrivilegeCommandLine set Count = Count + 1 \
 							UPSERT RETURN AFTER @rid, Count WHERE \
@@ -281,29 +300,34 @@ function getPathNoFilename(fullpath) {
     case "CreateRemoteThread": //ID8
          print('handling CreateRemoteThread ' + e['TargetProcessGuid'] + ' ' + e['Hostname'])
          // CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
-      	 var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?', e['TargetProcessGuid'],e['Hostname']);
+      	 var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?',
+                               e['TargetProcessGuid'],e['Hostname']);
          if(target.length > 0) {
             print('Found ' +  target[0].getProperty('@rid'));
          	db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].getProperty('@rid'), target[0].getProperty('@rid'));
          	print('Done RemoteThreadFor')
          }      
          // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
-		 db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?) TO ?',e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
+		 db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) \
+					 WHERE Hostname = ?) TO ?',e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
          print('Done CreatedThread')
          break;
       
     case "NetworkConnect":       
          var u = db.command('UPDATE NetworkDestinationPort set Count = Count + 1 \
-							UPSERT RETURN AFTER @rid, Count WHERE Image = ? AND Hostname = ? AND Port = ?',r[0].getProperty('Image'),r[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
+							UPSERT RETURN AFTER @rid, Count WHERE Image = ? AND \
+							Hostname = ? AND Port = ?',r[0].getProperty('Image'),r[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
          
          if(u[0].getProperty('Count') == 1) {
          	//print('Destination Network Port Sighting')
             //print(r[0].getProperty('Hostname') + ':' + r[0].getProperty('Image') + ' to port: ' + r[0].getProperty('DestinationPort'))
             retry("db.command('CREATE EDGE DestinationPortSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
          }
+      
          //print('Checking lateral communication')
       	 var destination = db.query('SELECT FROM NetworkAddress WHERE IpAddress = ? \
 									 AND Hostname <> ?',r[0].getProperty('DestinationIp'),r[0].getProperty('Hostname'))
+         
          if(destination.length > 0) {
          	//print('Lateral communication detected!')
             var lateral = db.query('SELECT FROM listeningport WHERE Hostname = ? AND \
@@ -316,10 +340,8 @@ function getPathNoFilename(fullpath) {
 									AND Image.IndexOf(?) > -1 order by id desc LIMIT 1', 
                                    lateral[0].getProperty('Hostname') ,lateral[0].getProperty('ProcessId'), lateral[0].getProperty('ProcessName'))
                 if(lpc.length > 0) {
-                    if(lpc[0].getProperty('Image').indexOf('svchost') < 0) 
-                      		print('Found listening process ' + lpc[0].getProperty('Image') + ' on ' + lpc[0].getProperty('Hostname'))
-                    var lateraledges = db.query('select from (select expand(in_BoundTo) from ?) \
-					where out = ? AND in = ?', lpc[0].getProperty('@rid'), lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
+                    var lateraledges = db.query('select from (select expand(in_BoundTo) from ?) where out = ? AND in = ?'
+                                                ,lpc[0].getProperty('@rid'), lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
                     if(lateraledges.length == 0) {
                         print('Adding BoundTo edge between ' + lateral[0].getProperty('@rid') + ' to ' + lpc[0].getProperty('@rid'))
                     	db.command('CREATE EDGE BoundTo FROM ? TO ?', lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
