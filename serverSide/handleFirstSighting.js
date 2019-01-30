@@ -209,6 +209,9 @@ function handleLateralComm(newEvent) {
         if(newEvent['Image'] == 'C:\\Windows\\System32\\svchost.exe' && newEvent['SourcePortName'] == 'ssdp') {
             return
         }
+        if(newEvent['Image'] == 'C:\\Windows\\System32\\dasHost.exe' && newEvent['SourcePortName'] == 'ws-discovery') {
+            return
+        }
         console.log('\nFound lateral communication...\n')
         updateCase(_stage3Score,newEvent['Hostname'],newEvent['@rid'], 'Lateral Movement')
     }
