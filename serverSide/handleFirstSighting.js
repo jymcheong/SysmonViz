@@ -95,7 +95,8 @@ function findCommandLineCluster(hupc){
                 }
             }
             if(found){
-                console.log('Found similar commandline with score: '+ clusterscore + ', creating link from ' + hupc['@rid'] + ' to ' + clusterid)
+                // show only score > 0, less clutter
+                if(clusterscore > 0) console.log('Found similar commandline with score: '+ clusterscore + ', creating link from ' + hupc['@rid'] + ' to ' + clusterid)
                 linkSimilarTo(hupc['@rid'], clusterid)
                 resolve(clusterscore) // assuming known malicious CommandLine is assigned with score
             }
@@ -207,6 +208,9 @@ function handleSequence(newEvent) {
 function handleLateralComm(newEvent) {
     if(newEvent['in_DestinationPortSighted'] != undefined) {
         if(newEvent['Image'] == 'C:\\Windows\\System32\\svchost.exe' && newEvent['SourcePortName'] == 'ssdp') {
+            return
+        }
+        if(newEvent['Image'] == 'C:\\Windows\\System32\\svchost.exe' && newEvent['SourcePortName'] == 'ws-discovery') {
             return
         }
         if(newEvent['Image'] == 'C:\\Windows\\System32\\svchost.exe' && newEvent['SourcePortName'] == 'llmr') {
