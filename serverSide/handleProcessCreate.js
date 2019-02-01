@@ -26,8 +26,30 @@ function processQueue(){
     var newpc = _processCreateQ[0];
     var parentRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
     if(parentRID) {
-        connectParentOf(parentRID, newpc['@rid'])
-        _processCreateQ.shift()
+        if(newpc['ParentImage'] == 'C:\\Windows\\System32\\svchost.exe' && newpc['Image'] == 'C:\\Windows\\System32\\wininit.exe') {
+            console.log('Circular path found...')
+            _session.query("select from pc Where ParentImage like '%smss.exe' AND Image like '%smss.exe' AND ProcessId = :id order by id desc limit 1", 
+            { params : {id: newpc['ParentProcessId']}})
+            .all()
+            .then((data)=> {
+                if(data.length > 0){
+                    _session.command("UPDATE " + newpc['@rid'] + " SET ParentProcessGuid = :p1, ParentProcessId = :p2, ParentImage = :p3, ParentCommandLine = :p4"
+                    ,{ params : {p1: data[0]['ParentProcessGuid'], p2: data[0]['ParentProcessId'], p3: data[0]['ParentImage'], p4: data[0]['ParentCommandLine'] }} )
+                    .on('data',(results)=> { 
+                        parentRID = data[0]['@rid']
+                        connectParentOf(parentRID, newpc['@rid'])
+                        _processCreateQ.shift()
+                    })
+                }
+                else {
+                    console.log('Retrying circular fix later...')
+                }
+            })
+        }
+        else {
+            connectParentOf(parentRID, newpc['@rid'])
+            _processCreateQ.shift()
+        }
     }
     else {
         console.log('Searching database for parent of ' + newpc['Image'])
