@@ -238,7 +238,7 @@ function checkPrivilege(processCreate){
     score = processCreate['IntegrityLevel'] == 'High' ? score + _stage3Score : score;
     score = processCreate['IntegrityLevel'] == 'System' ? score + _stage3Score : score;
     console.log('IntegrityLevel: ' + processCreate['IntegrityLevel'])
-    if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'High-Privilege Execution')
+    if(score > 0) updateCase(score,processCreate['Hostname'],processCreate['@rid'], 'Privileged Execution')
 }
 
 function checkNetworkEvents(processCreate) {
