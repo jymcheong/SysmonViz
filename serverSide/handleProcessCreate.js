@@ -27,7 +27,7 @@ function processQueue(){
     var parentRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
     if(parentRID) {
         if(newpc['ParentImage'] == 'C:\\Windows\\System32\\svchost.exe' && newpc['Image'] == 'C:\\Windows\\System32\\wininit.exe') {
-            console.log('Circular path found...')
+            console.log('Circular path found...') // the following fixes it
             _session.query("select from pc Where ParentImage like '%smss.exe' AND Image like '%smss.exe' AND ProcessId = :id order by id desc limit 1", 
             { params : {id: newpc['ParentProcessId']}})
             .all()
