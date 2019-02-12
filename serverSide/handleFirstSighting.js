@@ -159,6 +159,7 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
     console.log('SignatureStatus:' + newEvent['SignatureStatus']);
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + _stage2Score;
     score = newEvent['Signature'] == 'Microsoft Windows' || newEvent['Signature'] == 'Microsoft Corporation' ? score : score + _stage2Score; 
+    
     // exclusions
     score = newEvent['ImageLoaded'].indexOf('C:\\Windows\\assembly') == 0 ? 0 : score;
 
@@ -177,8 +178,11 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
 function handleEXE(newEvent) {
     var score = _stage2Score;
     console.log('New EXE:' + newEvent['Image'])
+    
+    // exclusions
     score = newEvent['Image'].indexOf('C:\\Windows\\SoftwareDistribution') == 0 ? 0 : score;
     score = newEvent['Image'].indexOf('DismHost.exe') > 0 && newEvent['Image'].indexOf('C:\\Windows\\System32') == 0 ? 0 : score; 
+
     if(score > 0) {
         updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Foreign EXE')
     }
