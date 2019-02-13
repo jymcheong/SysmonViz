@@ -46,6 +46,7 @@ function eventHandler(newEvent) {
             case 'LateralCommunication':
                 handleLateralComm(event);
                 break;
+                
             default:
                 return;
         }  
