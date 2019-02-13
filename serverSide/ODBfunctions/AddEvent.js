@@ -149,11 +149,10 @@ if(e["SourceName"] == "DataFuseNetwork"){
 
 delete e['Message'] //problematic for server-side parsing... it is repeated data anyway
 var jsonstring = JSON.stringify(e)
-var id = (new Date())*1 //this is an important field
+var id = (new Date())*1
 jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
 var stmt = 'INSERT INTO '+ classname + ' CONTENT ' + jsonstring
-//ommitted due to volume. Only insert Foreign DLL that are not baselined
-if(classname != 'ImageLoad') { 
+if(classname != 'ImageLoad') {
     try {
         var r = db.command(stmt);
     }
@@ -161,10 +160,10 @@ if(classname != 'ImageLoad') {
         print(Date() + ' Error inserting ' + stmt)
     }
 }
-
+//print(Date() + classname);
 switch(classname) {
 case "ProcessCreate":
-        var current_id = r[0].getProperty('id') 
+        var current_id = r[0].getProperty('id')
 
         // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
         print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
@@ -191,8 +190,8 @@ case "ProcessCreate":
         var IHT_rid = u[0].getProperty('@rid')
         
         if(u[0].getProperty('BaseLined') == false) 
-        {   // Baseline propagation; if a system file is updated, usually the folder full-path remains intact
-            // if there's somehow EoP & system file is over-written, then the HashCount will very low or = 1 
+        {   
+            print()
             var otherbaseline = db.query('SELECT FROM ImageHashes where (Image.indexOf(?) > -1 OR Hashes = ?) AND BaseLined = true'
                                             ,getPathNoFilename(e['Image']), e['Hashes'])
             if(otherbaseline.length == 0) {
@@ -200,7 +199,7 @@ case "ProcessCreate":
                 print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
                 retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
                 print()
-                // find any FileCreate that can be link to this sighting
+                    // find any FileCreate that can be link to this sighting
                 db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
                             ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
                 print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
@@ -285,15 +284,14 @@ case "DriverLoad": //ID6
         }
         break;
 
-case "CreateRemoteThread": //ID8
+case "CreateRemoteThread": //ID8 - CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
         print('handling CreateRemoteThread ' + e['TargetProcessGuid'] + ' ' + e['Hostname'])
-        // CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
         var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?',
                             e['TargetProcessGuid'],e['Hostname']);
         if(target.length > 0) {
-        print('Found ' +  target[0].getProperty('@rid'));
-        db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].getProperty('@rid'), target[0].getProperty('@rid'));
-        print('Done RemoteThreadFor')
+          print('Found ' +  target[0].getProperty('@rid'));
+          db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].getProperty('@rid'), target[0].getProperty('@rid'));
+          print('Done RemoteThreadFor')
         }      
         // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
         db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) \
@@ -306,37 +304,34 @@ case "NetworkConnect":
                         UPSERT RETURN AFTER @rid, Count WHERE Image = ? AND \
                         Hostname = ? AND Port = ?',r[0].getProperty('Image'),r[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
         
-        if(u[0].getProperty('Count') == 1) {
-        //print('Destination Network Port Sighting')
-        //print(r[0].getProperty('Hostname') + ':' + r[0].getProperty('Image') + ' to port: ' + r[0].getProperty('DestinationPort'))
-        retry("db.command('CREATE EDGE DestinationPortSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-        }
-    
-        //print('Checking lateral communication')
+        if(u[0].getProperty('Count') == 1) { // new destination port sighted for that Process-Image
+        	retry("db.command('CREATE EDGE DestinationPortSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+        } 
+    	// look for destination IP address that matches BUT NOT the current Hostname
         var destination = db.query('SELECT FROM NetworkAddress WHERE IpAddress = ? \
-                                    AND Hostname <> ?',r[0].getProperty('DestinationIp'),r[0].getProperty('Hostname'))
-        
-        if(destination.length > 0) {
-        //print('Lateral communication detected!')
+                                    AND Hostname <> ?',r[0].getProperty('DestinationIp'),r[0].getProperty('Hostname'))    
+        if(destination.length == 0) break;
+    
+    	// find the target listening-port
         var lateral = db.query('SELECT FROM listeningport WHERE Hostname = ? AND \
-                        LocalPort = ?',destination[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
-        if(lateral.length > 0) {
-            //print('Destination port detected')
-            retry("db.command('CREATE EDGE LateralCommunication FROM ? TO ?',r[0].getProperty('@rid'),lateral[0].getProperty('@rid'))")
-            retry("db.command('CREATE EDGE ConnectedTo FROM (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessGuid = ?) TO ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'), r[0].getProperty('@rid'))")
-            var lpc = db.query('SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? \
-                                AND Image.IndexOf(?) > -1 order by id desc LIMIT 1', 
-                                lateral[0].getProperty('Hostname') ,lateral[0].getProperty('ProcessId'), lateral[0].getProperty('ProcessName'))
-            if(lpc.length > 0) {
-                var lateraledges = db.query('select from (select expand(in_BoundTo) from ?) where out = ? AND in = ?'
-                                            ,lpc[0].getProperty('@rid'), lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
-                if(lateraledges.length == 0) {
-                    print('Adding BoundTo edge between ' + lateral[0].getProperty('@rid') + ' to ' + lpc[0].getProperty('@rid'))
-                    db.command('CREATE EDGE BoundTo FROM ? TO ?', lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
-                }
-            } 
-        }
-        }
+                        		LocalPort = ?',destination[0].getProperty('Hostname'),r[0].getProperty('DestinationPort'))
+        if(lateral.length == 0) break;
+        retry("db.command('CREATE EDGE LateralCommunication FROM ? TO ?',r[0].getProperty('@rid'),lateral[0].getProperty('@rid'))")
+        
+    	// find the Process with that listening-port
+        var lpc = db.query('SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? \
+                            AND Image.IndexOf(?) > -1 order by id desc LIMIT 1', 
+                            lateral[0].getProperty('Hostname') ,lateral[0].getProperty('ProcessId'), lateral[0].getProperty('ProcessName'))
+        if(lpc.length == 0) break;
+    
+        // check for existing BoundTo edges
+		var lateraledges = db.query('select from (select expand(in_BoundTo) from ?) where out = ? AND in = ?'
+        							,lpc[0].getProperty('@rid'), lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
+        if(lateraledges.length == 0) { // avoid multiple BoundTo edges during repeated lateral communications
+        	print('Adding BoundTo edge between ' + lateral[0].getProperty('@rid') + ' to ' + lpc[0].getProperty('@rid'))
+            db.command('CREATE EDGE BoundTo FROM ? TO ?', lateral[0].getProperty('@rid'), lpc[0].getProperty('@rid'))
+		}
+	
         break;           
 }
 
