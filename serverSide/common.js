@@ -35,7 +35,7 @@ async function startLiveQuery(stm){
         if(data['operation'] == 1) eventHandler(data['data'])
     })
     _handles.push(_handle)
-    if(_sessionStarted != null) _sessionStarted()
+    if(_sessionStarted != null) _sessionStarted() // assign to a function that runs upon start of DB session
 }
 
 function connectODB(){
