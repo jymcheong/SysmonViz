@@ -49,7 +49,7 @@ function eventHandler(newEvent) {
             default:
                 return;
         }  
-        if(event === undefined) return     
+        if(event === undefined) return  //some of the await may return undefined
         if(event['@class'] == 'ProcessCreate') {
             checkPrivilege(event); //for both ExeSighted & SequenceSighted only
             checkBeforeExplorer(event)
