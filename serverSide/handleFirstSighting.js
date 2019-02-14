@@ -255,8 +255,8 @@ function checkPrivilege(processCreate){
 
 function checkNetworkEvents(processCreate) {
     console.log('Checking for outbound network comms for ' + processCreate['@rid'])
-    var checkNetwork = function() {
-        var sql = 'CREATE EDGE ConnectedTo FROM ' + processCreate['@rid'] + ' TO (SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '")'
+    var checkNetwork = function() {                                                                          // avoid duplicated scores
+        var sql = 'CREATE EDGE ConnectedTo FROM ' + processCreate['@rid'] + ' TO (SELECT FROM NetworkConnect WHERE out("LateralCommunication").size() == 0 AND ProcessGuid = "' + processCreate['ProcessGuid'] + '")'
         //console.log('SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '"')
         _session.query('SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '"')
         .all()
