@@ -21,6 +21,7 @@ function linkNewEvent(classname, sourceRID, targetRID){
 
 function eventHandler(newEvent) {
     if(newEvent['Image'] == 'System') return
+    
     switch(newEvent['@class']){
         case "ImageLoad":
         case "ProcessTerminate"://ID5: ProcessCreate-[Terminated]->ProcessTerminate     	
