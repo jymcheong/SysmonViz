@@ -156,8 +156,8 @@ function handleSYS(newEvent) { // currently hardcoded to trust only Microsoft Wi
 
 function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Windows signature
     var score = 0;
-    console.log('Signature:' + newEvent['Signature']);
-    console.log('SignatureStatus:' + newEvent['SignatureStatus']);
+    //console.log('Signature:' + newEvent['Signature']);
+    //console.log('SignatureStatus:' + newEvent['SignatureStatus']);
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + _stage2Score;
     score = newEvent['Signature'] == 'Microsoft Windows' || newEvent['Signature'] == 'Microsoft Corporation' ? score : score + _stage2Score; 
     
