@@ -161,9 +161,10 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
     score = newEvent['SignatureStatus'] == 'Valid' ? score : score + _stage2Score;
     score = newEvent['Signature'] == 'Microsoft Windows' || newEvent['Signature'] == 'Microsoft Corporation' ? score : score + _stage2Score; 
     
-    // exclusions
+//--- start exclusions -----
     score = newEvent['ImageLoaded'].indexOf('C:\\Windows\\assembly') == 0 ? 0 : score;
-
+//--- end exclusions -----
+        
     if(score > 0) {
         updateCase(score,newEvent['Hostname'],newEvent['@rid'], "Foreign DLL")
         _session.query("select expand(in('LoadedImage')) from " + newEvent['@rid'])
@@ -179,11 +180,11 @@ function handleDLL(newEvent) { // currently hardcoded to trust only Microsoft Wi
 function handleEXE(newEvent) {
     var score = _stage2Score;
     console.log('New EXE:' + newEvent['Image'])
-    
-    // exclusions
+    //--- start exclusions -----
     score = newEvent['Image'].indexOf('C:\\Windows\\SoftwareDistribution') == 0 ? 0 : score;
     score = newEvent['Image'].indexOf('DismHost.exe') > 0 && newEvent['Image'].indexOf('C:\\Windows\\System32') == 0 ? 0 : score; 
-
+    //--- end exclusions -----
+        
     if(score > 0) {
         updateCase(score,newEvent['Hostname'],newEvent['@rid'], 'Foreign EXE')
     }
@@ -219,6 +220,7 @@ function handleSequence(newEvent) {
 
 function handleLateralComm(newEvent) {
     if(newEvent['in_DestinationPortSighted'] != undefined) {
+        //--- start exclusions -----
         if(newEvent['Image'] == 'C:\\Windows\\System32\\svchost.exe' && newEvent['SourcePortName'] == 'ssdp') {
             return
         }
@@ -234,6 +236,8 @@ function handleLateralComm(newEvent) {
         if(newEvent['Image'] == 'C:\\Windows\\System32\\dasHost.exe' && newEvent['SourcePortName'] == 'ws-discovery') {
             return
         }
+        //--- end exclusions -----
+        
         console.log('\nFound lateral communication...\n')
         updateCase(_stage3Score,newEvent['Hostname'],newEvent['@rid'], 'Lateral Communication')
     }
@@ -257,7 +261,6 @@ function checkNetworkEvents(processCreate) {
     console.log('Checking for outbound network comms for ' + processCreate['@rid'])
     var checkNetwork = function() {                                                                          // avoid duplicated scores
         var sql = 'CREATE EDGE ConnectedTo FROM ' + processCreate['@rid'] + ' TO (SELECT FROM NetworkConnect WHERE out("LateralCommunication").size() == 0 AND ProcessGuid = "' + processCreate['ProcessGuid'] + '")'
-        //console.log('SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '"')
         _session.query('SELECT FROM NetworkConnect WHERE ProcessGuid = "' + processCreate['ProcessGuid'] + '"')
         .all()
         .then((event)=>{
