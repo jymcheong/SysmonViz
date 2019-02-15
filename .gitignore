@@ -7,3 +7,6 @@ Icon
 .sync/IgnoreList
 .sync/StreamsList
 .sync/Archive/serverSide/cache/ProcessCreateRID/DESKTOP-CPQ2OES{4EF4918F-0018-5BD4-0000-00101ACEFF00}
+serverSide/package-lock.json
+node_modules
+node_modules/*
