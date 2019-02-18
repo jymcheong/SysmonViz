@@ -11,7 +11,7 @@ async function exportFunctions(){
             output += results[i]['@this.toJSON()'] + ','
         }
         output = output.slice(0,-1) + "]}"
-        console.log(output)
+        //console.log(output)
         fs.writeFile('functions.json', output, function(err) {
             if(err) {
                 return console.log(err);
@@ -21,4 +21,5 @@ async function exportFunctions(){
     })
 }
 
-exportFunctions()
+exportFunctions();
+exit();
