@@ -138,7 +138,7 @@ function updateCase(score, hostname, eventRid, reason = '') {
         _session.command('Update Case SET Score = Score + :sc UPSERT RETURN AFTER \
         @rid, Score WHERE Hostname = :h AND State = "new"',{ params : {sc: score, h: hostname}})
         .on('data',(c) => {
-            console.log('\nCase id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
+            console.log('\nReason: ' + reason + ' Case id: ' + c['@rid'] + ' score: ' + c['Score'] + '\n')
             linkToCase(eventRid,c['@rid'], score, reason)
         })
     })
