@@ -39,7 +39,7 @@ function eventHandler(newEvent) {
             // if process is foreground, then it may be due to user behavior deviations
             case  'SequenceSighted':
                 handleSequence(event); // event is a ProcessCreate
-                // Score is assigned only after profiling stage... ie. this script is not executed during profiling stage.
+                // Score is assigned only at monitoring stage... ie. this script is not executed during profiling stage.
                 _session.command('Update ' + newEvent['out'] + ' SET Score = ' + _stage2Score)
                 break;
 
