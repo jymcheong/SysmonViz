@@ -96,6 +96,8 @@ if(e["SourceName"] == "DataFuseUserActions"){
     catch(err) {
         print(Date() + ' Offending DataFuseUserActions ' + e['Message'])
         print(logline)
+        db.command('INSERT INTO FailedJSON SET line = ?', logline)
+        return
     }
     for(var k in uat){
         e[k] = uat[k]
@@ -112,38 +114,39 @@ if(e["SourceName"] == "DataFuseNetwork"){
             oldk = k // we don't want numbers as column names; can't via queries
             k = /^\d+$/.test(k) ? 'column'+ k : k;
             if(typeof uat[oldk] === 'object') {
-            if(e['EventID']==3 || e['EventID']==4) {
-                var transportProtocol = e['EventID']==3 ? 'TCP' : 'UDP';
-                // tracking Process-ListeningPorts
-                var lp = db.command('UPDATE NetworkListeningPort set Count = Count + 1 \
-                        UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND TransportProtocol = ? \
-                        AND LocalAddress = ? AND LocalPort = ? AND ProcessId = ? AND ProcessName = ?',
-                        e['Hostname'], transportProtocol, uat[oldk]['LocalAddress'],uat[oldk]['LocalPort']
-                        ,uat[oldk]['ProcessId'],uat[oldk]['ProcessName'])
-                // new listening port
-                if(lp[0].getProperty('Count') == 1){
-                    print('Found new listening port ' + uat[oldk]['LocalPort'] + ' for ' + e['Hostname'])
-                    db.command('CREATE EDGE ListeningPortSighted FROM ? TO \
-                    (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? order by id desc LIMIT 1)'
-                        ,lp[0].getProperty('@rid'),e['Hostname'], uat[oldk]['ProcessId'])
-                }
-            }
-            if(e['EventID']==1 || e['EventID']==2) {
-                print('\nNetworkDetails EventID = ' + e['EventID'])
-                print('Physical address: ' + uat[oldk]['PhysicalAddress'] + '\n')
-                for(var k2 in uat[oldk]['IPAddresses']) {
-                    print(k2 + ' has a value of ' + uat[oldk]['IPAddresses'][k2])
-                    db.command('UPDATE NetworkAddress set Count = Count + 1 \
-                                UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND PhysicalAddress = ? AND IpAddress = ?',
-                                e['Hostname'], uat[oldk]['PhysicalAddress'],uat[oldk]['IPAddresses'][k2])
-                }
-            }
+              if(e['EventID']==3 || e['EventID']==4) {
+                  var transportProtocol = e['EventID']==3 ? 'TCP' : 'UDP';
+                  // tracking Process-ListeningPorts
+                  var lp = db.command('UPDATE NetworkListeningPort set Count = Count + 1 \
+                          UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND TransportProtocol = ? \
+                          AND LocalAddress = ? AND LocalPort = ? AND ProcessId = ? AND ProcessName = ?',
+                          e['Hostname'], transportProtocol, uat[oldk]['LocalAddress'],uat[oldk]['LocalPort']
+                          ,uat[oldk]['ProcessId'],uat[oldk]['ProcessName'])
+                  // new listening port
+                  if(lp[0].getProperty('Count') == 1){
+                      print('Found new listening port ' + uat[oldk]['LocalPort'] + ' for ' + e['Hostname'])
+                      db.command('CREATE EDGE ListeningPortSighted FROM ? TO \
+                      (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? order by id desc LIMIT 1)'
+                          ,lp[0].getProperty('@rid'),e['Hostname'], uat[oldk]['ProcessId'])
+                  }
+              }
+              if(e['EventID']==1 || e['EventID']==2) {
+                  print('\nNetworkDetails EventID = ' + e['EventID'])
+                  print('Physical address: ' + uat[oldk]['PhysicalAddress'] + '\n')
+                  for(var k2 in uat[oldk]['IPAddresses']) {
+                      print(k2 + ' has a value of ' + uat[oldk]['IPAddresses'][k2])
+                      db.command('UPDATE NetworkAddress set Count = Count + 1 \
+                                  UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND PhysicalAddress = ? AND IpAddress = ?',
+                                  e['Hostname'], uat[oldk]['PhysicalAddress'],uat[oldk]['IPAddresses'][k2])
+                  }
+              }
             }
             e[k] = uat[oldk]
         }
     }
     catch(err){
         print(Date() + ' Offending DataFuseNetwork ' + e['Message'] + '\n' + err)
+        return
     }
 }   
 
@@ -158,15 +161,17 @@ if(classname != 'ImageLoad') {
     }
     catch(err){
         print(Date() + ' Error inserting ' + stmt)
+        return
     }
 }
-//print(Date() + classname);
+else print(e['ImageLoaded'])
+
 switch(classname) {
 case "ProcessCreate":
         var current_id = r[0].getProperty('id')
 
         // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
-        print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
+        //print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
         if(e['ParentImage'] == "System") {// smss.exe
             print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
             db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
@@ -188,24 +193,24 @@ case "ProcessCreate":
                         RETURN AFTER @rid, Count, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
 
         var IHT_rid = u[0].getProperty('@rid')
-        
+    
         if(u[0].getProperty('BaseLined') == false) 
         {   
-            print()
+            print() // not useful anymore once implemented file owner checks
             var otherbaseline = db.query('SELECT FROM ImageHashes where (Image.indexOf(?) > -1 OR Hashes = ?) AND BaseLined = true'
                                             ,getPathNoFilename(e['Image']), e['Hashes'])
             if(otherbaseline.length == 0) {
                 print(Date() + " EXE first-sighting of " + e['Image'])
                 print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
                 retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-                print()
+                //print()
                     // find any FileCreate that can be link to this sighting
                 db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
                             ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-                print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
+                //print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
             }
             else {
-                retry("db.command('UPDATE ? SET BaseLined = true', IHT_rid)")
+                db.command('UPDATE ? SET BaseLined = true', IHT_rid)
             }
         }
     
@@ -214,30 +219,28 @@ case "ProcessCreate":
                         UPSERT RETURN AFTER @rid, Count WHERE \
                         Hostname = ? AND User = ? AND CommandLine = ? AND IntegrityLevel = ?'
                         ,e['Hostname'],e['User'],e['CommandLine'],e['IntegrityLevel'])
-    
+    	
         var HUPC_rid = u[0].getProperty('@rid')
-
+	    
         // Check Process Type 
-        var t = db.query('select from TypeA_id_cache')
-        if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
-            && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
-            print(' Created PendingType for ' + r[0].getProperty('@rid'))
-            retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
+        var t = db.query('select from TypeA_id_cache Where Hostname = ?', e['Hostname'])
+    	if(t.length > 0) {
+          if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
+              && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
+              //print(' Created PendingType for ' + r[0].getProperty('@rid'))
+              retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
+          }
+          else {
+              //print('ProcessType: BeforeExplorer')
+              retry("db.command('UPDATE ? SET ProcessType = ?', HUPC_rid,'BeforeExplorer')")
+              retry("db.command('UPDATE ? SET ProcessType = ?', r[0].getProperty('@rid'),'BeforeExplorer')")
+          }          
         }
-        else {
-            print('ProcessType: BeforeExplorer')
-            retry("db.command('UPDATE ? SET ProcessType = ?', HUPC_rid,'BeforeExplorer')")
-            retry("db.command('UPDATE ? SET ProcessType = ?', r[0].getProperty('@rid'),'BeforeExplorer')")
-        }
-        print('')
         
-        // assign existing CommandLine cluster score if any
+        // assign if any exact same commandline with existing score > 0
         var score = db.query('select from commandlinecluster where Score > 0 AND CommandLine = ?',e['CommandLine'])
-        print('length of score: ' + score.length + ' for ' + e['CommandLine'])
-        if(score.length > 0) print('score ' + score[0].getProperty('Score'))
-    
-        if(u[0].getProperty('Count') == 1 || score.length > 0) {
-                print("\n" + Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
+    	if(u[0].getProperty('Count') == 1 || score.length > 0) {  // note OR condition
+                //print("\n" + Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
                 retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
                 retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")                 
         }
@@ -245,7 +248,7 @@ case "ProcessCreate":
         break;
     
 case "ImageLoad": 
-        // track Full-path vs Hashes
+        // track Full-path & Hashes
         var u = db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
                     UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
                     e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
@@ -256,7 +259,8 @@ case "ImageLoad":
         
         if(u[0].getProperty('BaseLined') == false) {
             var ilsplit = e['ImageLoaded'].split("\\")
-            var otherbaseline = db.query('SELECT FROM ImageLoadedHashes WHERE (ImageLoaded.indexOf(?) > -1 OR Hashes = ?) AND BaseLined = true', getPathNoFilename(e['ImageLoaded']), e['Hashes'] )
+            var otherbaseline = db.query('SELECT FROM ImageLoadedHashes \
+					WHERE (ImageLoaded.indexOf(?) > -1 OR Hashes = ?) AND BaseLined = true', getPathNoFilename(e['ImageLoaded']), e['Hashes'] )
             if(otherbaseline.length == 0) {
                 var r = db.command(stmt); // insert the ImageLoad log line
                 print(Date() + " Dll First Sighting of " + e['ImageLoaded'] + " on " + e['Hostname'])
@@ -285,18 +289,18 @@ case "DriverLoad": //ID6
         break;
 
 case "CreateRemoteThread": //ID8 - CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
-        print('handling CreateRemoteThread ' + e['TargetProcessGuid'] + ' ' + e['Hostname'])
+        //print('handling CreateRemoteThread ' + e['TargetProcessGuid'] + ' ' + e['Hostname'])
         var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?',
                             e['TargetProcessGuid'],e['Hostname']);
         if(target.length > 0) {
-          print('Found ' +  target[0].getProperty('@rid'));
+          //print('Found ' +  target[0].getProperty('@rid'));
           db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].getProperty('@rid'), target[0].getProperty('@rid'));
-          print('Done RemoteThreadFor')
+          //print('Done RemoteThreadFor')
         }      
         // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
         db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) \
                     WHERE Hostname = ?) TO ?',e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
-        print('Done CreatedThread')
+        //print('Done CreatedThread')
         break;
     
 case "NetworkConnect":       
@@ -308,8 +312,8 @@ case "NetworkConnect":
         	retry("db.command('CREATE EDGE DestinationPortSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
         } 
     	// look for destination IP address that matches BUT NOT the current Hostname
-        var destination = db.query('SELECT FROM NetworkAddress WHERE IpAddress = ? \
-                                    AND Hostname <> ?',r[0].getProperty('DestinationIp'),r[0].getProperty('Hostname'))    
+        var destination = db.query('SELECT FROM NetworkAddress WHERE (IpAddress = ? OR Hostname = ?)\
+                                    AND Hostname <> ?',r[0].getProperty('DestinationIp'), r[0].getProperty('DestinationHostname'),r[0].getProperty('Hostname'))    
         if(destination.length == 0) break;
     
     	// find the target listening-port

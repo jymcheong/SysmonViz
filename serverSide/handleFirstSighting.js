@@ -55,6 +55,7 @@ function eventHandler(newEvent) {
             checkPrivilege(event); //for both ExeSighted & SequenceSighted only
             checkBeforeExplorer(event)
             checkNetworkEvents(event)
+            // add to watchlist
         }
     })    
 }
