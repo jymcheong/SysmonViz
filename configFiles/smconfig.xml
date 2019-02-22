@@ -85,9 +85,16 @@
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, ImageLoaded, Hashes, Signed, Signature, SignatureStatus-->
 		<ImageLoad onmatch="exclude">
 			<Image condition="is">C:\Windows\Sysmon.exe</Image>
-			<Image condition="is">C:\Windows\Sysmon64.exe</Image>
-			<Image condition="is">C:\Windows\DataFusion\installers\Sysmon.exe</Image>
-			<ImageLoaded condition="is">C:\Windows\System32\wbem\unsecapp.exe</ImageLoaded>
+ 			<ImageLoaded condition="contains">C:\Windows\System32</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\WinSxS</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\SysWOW64</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\servicing</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\assembly</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\Microsoft.NET</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\SystemApps</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Program Files\Windows</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\ShellExperiences</ImageLoaded>
+			<ImageLoaded condition="contains">C:\Windows\DataFusion</ImageLoaded>
 		</ImageLoad>
 
 	<!--SYSMON EVENT ID 8 : REMOTE THREAD CREATED [CreateRemoteThread]-->
@@ -129,6 +136,8 @@
 		
 		<ProcessAccess onmatch="exclude">
 			<SourceImage condition="contains">C:\ProgramData\Microsoft\Windows Defender</SourceImage>
+			<SourceImage condition="contains">C:\Program Files\Windows Defender</SourceImage>
+			<SourceImage condition="contains">C:\Windows\system</SourceImage>
 			<SourceImage condition="is">C:\Windows\system32\taskmgr.exe</SourceImage>
 			<SourceImage condition="is"> C:\Windows\System32\svchost.exe</SourceImage>
 		</ProcessAccess>
@@ -503,8 +512,8 @@
 		<!--ADDITIONAL REFERENCE: [ https://rawsec.lu/blog/posts/2017/Sep/19/sysmon-v610-vs-wmi-persistence/ ] -->
 
 		<!--DATA: EventType, UtcTime, Operation, User, Name, Type, Destination, Consumer, Filter-->
-		<!-- <WmiEvent onmatch="exclude">
-		</WmiEvent> -->
+		<WmiEvent onmatch="exclude">
+		</WmiEvent>
 
 	<!--SYSMON EVENT ID 255 : ERROR-->
 		<!--"This event is generated when an error occurred within Sysmon. They can happen if the system is under heavy load

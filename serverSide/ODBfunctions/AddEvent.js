@@ -155,7 +155,7 @@ var jsonstring = JSON.stringify(e)
 var id = (new Date())*1
 jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
 var stmt = 'INSERT INTO '+ classname + ' CONTENT ' + jsonstring
-if(classname != 'ImageLoad') {
+//if(classname != 'ImageLoad') {
     try {
         var r = db.command(stmt);
     }
@@ -163,18 +163,16 @@ if(classname != 'ImageLoad') {
         print(Date() + ' Error inserting ' + stmt)
         return
     }
-}
-else print(e['ImageLoaded'])
+//} else print(e['ImageLoaded'])
 
 switch(classname) {
 case "ProcessCreate":
         var current_id = r[0].getProperty('id')
-
-        // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
         //print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
         if(e['ParentImage'] == "System") {// smss.exe
             print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
-            db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
+            // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
+          	db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
                         WHERE Hostname = ?',r[0].getProperty('id'),e['Hostname'])
         }
     
@@ -194,24 +192,13 @@ case "ProcessCreate":
 
         var IHT_rid = u[0].getProperty('@rid')
     
-        if(u[0].getProperty('BaseLined') == false) 
+        if(u[0].getProperty('HashCount') == 1) 
         {   
-            print() // not useful anymore once implemented file owner checks
-            var otherbaseline = db.query('SELECT FROM ImageHashes where (Image.indexOf(?) > -1 OR Hashes = ?) AND BaseLined = true'
-                                            ,getPathNoFilename(e['Image']), e['Hashes'])
-            if(otherbaseline.length == 0) {
-                print(Date() + " EXE first-sighting of " + e['Image'])
-                print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
-                retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-                //print()
-                    // find any FileCreate that can be link to this sighting
-                db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
-                            ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-                //print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
-            }
-            else {
-                db.command('UPDATE ? SET BaseLined = true', IHT_rid)
-            }
+           print(Date() + " EXE first-sighting of " + e['Image'])
+           print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
+           retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+           db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
+                      ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
         }
     
         // CommandLine tracking
@@ -252,28 +239,19 @@ case "ImageLoad":
         var u = db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
                     UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
                     e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
-        
         // track ONLY Hashes
         u = db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
                     UPSERT RETURN AFTER @rid, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
         
-        if(u[0].getProperty('BaseLined') == false) {
-            var ilsplit = e['ImageLoaded'].split("\\")
-            var otherbaseline = db.query('SELECT FROM ImageLoadedHashes \
-					WHERE (ImageLoaded.indexOf(?) > -1 OR Hashes = ?) AND BaseLined = true', getPathNoFilename(e['ImageLoaded']), e['Hashes'] )
-            if(otherbaseline.length == 0) {
-                var r = db.command(stmt); // insert the ImageLoad log line
-                print(Date() + " Dll First Sighting of " + e['ImageLoaded'] + " on " + e['Hostname'])
-                retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-                retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
+        if(u[0].getProperty('HashCount') == 1) {
+            //var r = db.command(stmt); // insert the ImageLoad log line
+            print(Date() + " Dll First Sighting of " + e['ImageLoaded'] + " on " + e['Hostname'])
+            retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
+            retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
                 print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))      
-                db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?',r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-                print('Added to watchlist: ' + r[0].getProperty('Hostname') + ' ' +  r[0].getProperty('ProcessGuid'))
-            }
-            else {
-                db.command('UPDATE ? SET BaseLined = true', u[0].getProperty('@rid') )
-            }
-        }//*/
+                db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
+                           ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+        }
         break;
     
 case "DriverLoad": //ID6
