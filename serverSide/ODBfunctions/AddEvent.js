@@ -23,17 +23,17 @@ var eventIdLookup = {1:'ProcessCreate', 2:'FileCreateTime', 3:'NetworkConnect',
 
 // fix issue #104 - illegal field names
 function rewriteProperties(obj) {
-var notValid = /[\W_]+/g
-if (typeof obj !== "object") return obj; //that is not a typo, it checks value & type
-for (var prop in obj) {
-    if (obj.hasOwnProperty(prop)) {
-        obj[prop.replace(notValid, "")] = rewriteProperties(obj[prop]);
-        if (notValid.test(prop)) {
-            delete obj[prop];
-        }
-    }
-}
-return obj;
+  var notValid = /[\W_]+/g
+  if (typeof obj !== "object") return obj; //that is not a typo, it checks value & type
+  for (var prop in obj) {
+      if (obj.hasOwnProperty(prop)) {
+          obj[prop.replace(notValid, "")] = rewriteProperties(obj[prop]);
+          if (notValid.test(prop)) {
+              delete obj[prop];
+          }
+      }
+  }
+  return obj;
 }                       
 
 function retry(command){
@@ -49,21 +49,14 @@ function retry(command){
     }
 }
 
-function getPathNoFilename(fullpath) {
-    var fps = fullpath.split("\\")
-    var fn = fps[fps.length - 1]
-    return fullpath.replace(fn,"")
-}
-
-
 var logline = unescape(jsondata)
 try {
-    var e = rewriteProperties(JSON.parse(logline)); 
+  var e = rewriteProperties(JSON.parse(logline)); 
 }
 catch(err) {
-    print(Date() + ' Offending line ' + logline);
-    db.command('INSERT INTO FailedJSON SET line = ?', logline)
-    return
+   print(Date() + ' Offending line ' + logline);
+   db.command('INSERT INTO FailedJSON SET line = ?', logline)
+   return
 }
 
 e['ToBeProcessed'] = true
@@ -74,7 +67,7 @@ if(e['Keywords'] != undefined) {
     e['Keywords'] = '' + e['Keywords'] // turn it to string
 }
 
-// Sysmon events
+// Pre-process Sysmon events
 if(e["SourceName"] == "Microsoft-Windows-Sysmon"){
     classname = eventIdLookup[e['EventID']]
     e['SysmonProcessId'] = e['ProcessID']
@@ -86,6 +79,14 @@ if(e["SourceName"] == "Microsoft-Windows-Sysmon"){
     if(e["TargetProcessGUID"]) e["TargetProcessGuid"] = e["TargetProcessGUID"]; 
 }
 
+// DataFusion Process Monitor events
+if(e["SourceName"] == "DataFusionProcMon"){
+    var classname = e['Class']; delete e['Class'];
+    db.command("INSERT INTO "+ classname + " CONTENT " + JSON.stringify(e));
+	return;
+}
+
+  
 // DataFusion UAT events
 if(e["SourceName"] == "DataFuseUserActions"){
     classname = 'UserActionTracking'
@@ -124,7 +125,7 @@ if(e["SourceName"] == "DataFuseNetwork"){
                           ,uat[oldk]['ProcessId'],uat[oldk]['ProcessName'])
                   // new listening port
                   if(lp[0].getProperty('Count') == 1){
-                      print('Found new listening port ' + uat[oldk]['LocalPort'] + ' for ' + e['Hostname'])
+                      //print('Found new listening port ' + uat[oldk]['LocalPort'] + ' for ' + e['Hostname'])
                       db.command('CREATE EDGE ListeningPortSighted FROM ? TO \
                       (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? order by id desc LIMIT 1)'
                           ,lp[0].getProperty('@rid'),e['Hostname'], uat[oldk]['ProcessId'])
@@ -150,7 +151,7 @@ if(e["SourceName"] == "DataFuseNetwork"){
     }
 }   
 
-delete e['Message'] //problematic for server-side parsing... it is repeated data anyway
+if(e['Message'] != null) delete e['Message'] //problematic for server-side parsing... it is repeated data anyway
 var jsonstring = JSON.stringify(e)
 var id = (new Date())*1
 jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
@@ -192,15 +193,18 @@ case "ProcessCreate":
 
         var IHT_rid = u[0].getProperty('@rid')
     
-        if(u[0].getProperty('HashCount') == 1) 
-        {   
-           print(Date() + " EXE first-sighting of " + e['Image'])
-           print('Link ' + u[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
-           retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-           db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
-                      ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
-        }
+    	var foreign = db.query('SELECT @rid FROM UntrustedFile Where ToBeProcessed = true \
+					  AND Type = "ProcessCreate" AND Hostname = ? AND ProcessGuid = ?', 
+                      r[0].getProperty('Hostname'), r[0].getProperty('ProcessGuid'));
     
+		if(foreign.length > 0){
+        	print('Link ExeSighted from ' + foreign[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
+            retry("db.command('CREATE EDGE ExeSighted FROM ? TO ?', foreign[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+          	db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?, rid = ?'
+                      ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'), r[0].getProperty('@rid'))
+            retry("db.command('UPDATE ? SET ToBeProcessed = false', foreign[0].getProperty('@rid'))")
+        }
+    	
         // CommandLine tracking
         u = db.command('UPDATE HostUserPrivilegeCommandLine set Count = Count + 1 \
                         UPSERT RETURN AFTER @rid, Count WHERE \
@@ -213,12 +217,10 @@ case "ProcessCreate":
         var t = db.query('select from TypeA_id_cache Where Hostname = ?', e['Hostname'])
     	if(t.length > 0) {
           if(current_id > t[0].getProperty('smss_id') && current_id > t[0].getProperty('explorer_id') 
-              && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
-              //print(' Created PendingType for ' + r[0].getProperty('@rid'))
+             && t[0].getProperty('explorer_id') > t[0].getProperty('smss_id')) {
               retry("db.command('CREATE EDGE PendingType from ? TO ?',HUPC_rid, r[0].getProperty('@rid'))")
           }
           else {
-              //print('ProcessType: BeforeExplorer')
               retry("db.command('UPDATE ? SET ProcessType = ?', HUPC_rid,'BeforeExplorer')")
               retry("db.command('UPDATE ? SET ProcessType = ?', r[0].getProperty('@rid'),'BeforeExplorer')")
           }          
@@ -227,9 +229,8 @@ case "ProcessCreate":
         // assign if any exact same commandline with existing score > 0
         var score = db.query('select from commandlinecluster where Score > 0 AND CommandLine = ?',e['CommandLine'])
     	if(u[0].getProperty('Count') == 1 || score.length > 0) {  // note OR condition
-                //print("\n" + Date() + " CommandLine first-sighting of " + e['CommandLine'] + ' on ' + e['Hostname'])
-                retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-                retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")                 
+        	retry("db.command('CREATE EDGE CommandLineSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+            retry("db.command('CREATE EDGE HasHashes FROM ? to ?', HUPC_rid, IHT_rid)")                 
         }
     
         break;
@@ -242,16 +243,20 @@ case "ImageLoad":
         // track ONLY Hashes
         u = db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
                     UPSERT RETURN AFTER @rid, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
-        
-        if(u[0].getProperty('HashCount') == 1) {
-            //var r = db.command(stmt); // insert the ImageLoad log line
-            print(Date() + " Dll First Sighting of " + e['ImageLoaded'] + " on " + e['Hostname'])
-            retry("db.command('CREATE EDGE DllSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-            retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
-                print(Date() + " Linked First Sighted Dll to " + r[0].getProperty('@rid'))      
-                db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?'
-                           ,r[0].getProperty('Hostname'),r[0].getProperty('ProcessGuid'))
+   
+    	var foreign = db.query('SELECT @rid FROM UntrustedFile Where ToBeProcessed = true \
+					  AND Type = "ImageLoad" AND Hostname = ? AND ProcessGuid = ?', 
+                      r[0].getProperty('Hostname'), r[0].getProperty('ProcessGuid'));
+		if(foreign.length > 0){
+        	print('Link DllSighted from ' + foreign[0].getProperty('@rid') + ' to ' + r[0].getProperty('@rid'))
+            retry("db.command('CREATE EDGE DllSighted FROM ? TO ?',foreign[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+            retry("db.command('UPDATE ? SET ToBeProcessed = false', foreign[0].getProperty('@rid'))")
+            retry("db.command('CREATE EDGE UsedAsImage FROM (SELECT FROM FileCreate WHERE Hostname = ? \
+				  AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?', \
+				  e['Hostname'], r[0].getProperty('@rid') ,r[0].getProperty('@rid'))")
+          	//watch list requires select from ProcessCreate
         }
+    
         break;
     
 case "DriverLoad": //ID6
