@@ -138,6 +138,30 @@ if(e["SourceName"] == "DataFuseUserActions"){
     }
 }
 
+// DataFusion network events v2
+if(e["SourceName"] == "DataFuseNetwork_v2"){
+	if(e['EventID']==3 || e['EventID']==4) {
+    	var lp = db.command('UPDATE NetworkListeningPort set Count = Count + 1 \
+                          UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND TransportProtocol = ? \
+                          AND LocalAddress = ? AND LocalPort = ? AND ProcessId = ? AND ProcessName = ?',
+                          e['Hostname'], e['TransportProtocol'], e['LocalAddress'], e['LocalPort'],e['ProcessId'],e['ProcessName'])
+              
+        if(lp[0].getProperty('Count') == 1){ // new listening port
+        	//print('Found new listening port ' + e['LocalPort'] + ' for ' + e['Hostname'])
+            db.command('CREATE EDGE ListeningPortSighted FROM ? TO \
+                      (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? order by id desc LIMIT 1)'
+            		  ,lp[0].getProperty('@rid'),e['Hostname'], e['ProcessId'])
+		}	
+    }
+  	if(e['EventID']==1 || e['EventID']==2) {
+       print('network address found')
+       db.command('UPDATE NetworkAddress set Count = Count + 1 \
+                    UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND PhysicalAddress = ? AND IpAddress = ?',
+                    e['Hostname'], e['PhysicalAddress'],e['IpAddress'])
+    }
+    return; // no need to insert events since they come in every 3 seconds serving as heartbeat for DataFusion service.
+}
+
 // DataFusion network events
 if(e["SourceName"] == "DataFuseNetwork"){
     classname = 'NetworkDetails'
@@ -280,7 +304,7 @@ case "DriverLoad": //ID6
         if(u[0].getProperty('BaseLined') == false) {
             print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
             retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-            retry("db.command('CREATE EDGE UsedAsDriver FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT ImageLoaded FROM ?) order by id desc limit 1) TO ?',e['Hostname'],r[0].getProperty('@rid'),r[0].getProperty('@rid'))")
+            retry("db.command('CREATE EDGE UsedAsDriver FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT DriverLoad FROM ?) order by id desc limit 1) TO ?','" + e['Hostname'] + "',r[0].getProperty('@rid'),r[0].getProperty('@rid'))")
         }
         break;
 
