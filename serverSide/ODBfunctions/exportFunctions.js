@@ -22,4 +22,4 @@ async function exportFunctions(){
 }
 
 exportFunctions();
-exit();
+process.exit()
