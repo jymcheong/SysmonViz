@@ -60,7 +60,9 @@ function checkSpoof(e, rid){
         if(trueParent.length > 0) {
             retry("db.command('CREATE EDGE TrueParentOf FROM " + trueParent[0].getProperty('@rid') + " to " + rid + "')")
         }
+        
 	}
+    
 }
 
 function checkForeign(e, pc_rid, classname, insertSQL) {
@@ -78,7 +80,9 @@ function checkForeign(e, pc_rid, classname, insertSQL) {
         retry("db.command('CREATE EDGE " + edgename + " FROM " + foreign[0].getProperty('@rid') +" TO " + pc_rid + "')")
         retry("db.command('UPDATE " + foreign[0].getProperty('@rid') +" SET ToBeProcessed = false')")
             //db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?, rid = ?', e['Hostname'], e['ProcessGuid'], pc_rid)
-	}
+		
+    }
+    
 }
 
 
@@ -162,51 +166,6 @@ if(e["SourceName"] == "DataFuseNetwork_v2"){
     return; // no need to insert events since they come in every 3 seconds serving as heartbeat for DataFusion service.
 }
 
-// DataFusion network events
-if(e["SourceName"] == "DataFuseNetwork"){
-    classname = 'NetworkDetails'
-    delete e['ProcessID']
-    try {
-        var uat = JSON.parse(e['Message'])
-        for(var k in uat){
-            oldk = k // we don't want numbers as column names; can't via queries
-            k = /^\d+$/.test(k) ? 'column'+ k : k;
-            if(typeof uat[oldk] === 'object') {
-              if(e['EventID']==3 || e['EventID']==4) {
-                  var transportProtocol = e['EventID']==3 ? 'TCP' : 'UDP';
-                  // tracking Process-ListeningPorts
-                  var lp = db.command('UPDATE NetworkListeningPort set Count = Count + 1 \
-                          UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND TransportProtocol = ? \
-                          AND LocalAddress = ? AND LocalPort = ? AND ProcessId = ? AND ProcessName = ?',
-                          e['Hostname'], transportProtocol, uat[oldk]['LocalAddress'],uat[oldk]['LocalPort']
-                          ,uat[oldk]['ProcessId'],uat[oldk]['ProcessName'])
-                  // new listening port
-                  if(lp[0].getProperty('Count') == 1){
-                      //print('Found new listening port ' + uat[oldk]['LocalPort'] + ' for ' + e['Hostname'])
-                      db.command('CREATE EDGE ListeningPortSighted FROM ? TO \
-                      (SELECT FROM ProcessCreate WHERE Hostname = ? AND ProcessId = ? order by id desc LIMIT 1)'
-                          ,lp[0].getProperty('@rid'),e['Hostname'], uat[oldk]['ProcessId'])
-                  }
-              }
-              if(e['EventID']==1 || e['EventID']==2) {
-                  print('\nNetworkDetails EventID = ' + e['EventID'])
-                  print('Physical address: ' + uat[oldk]['PhysicalAddress'] + '\n')
-                  for(var k2 in uat[oldk]['IPAddresses']) {
-                      print(k2 + ' has a value of ' + uat[oldk]['IPAddresses'][k2])
-                      db.command('UPDATE NetworkAddress set Count = Count + 1 \
-                                  UPSERT RETURN AFTER @rid, Count WHERE Hostname = ? AND PhysicalAddress = ? AND IpAddress = ?',
-                                  e['Hostname'], uat[oldk]['PhysicalAddress'],uat[oldk]['IPAddresses'][k2])
-                  }
-              }
-            }
-            e[k] = uat[oldk]
-        }
-    }
-    catch(err){
-        print(Date() + ' Offending DataFuseNetwork ' + e['Message'] + '\n' + err)
-        return
-    }
-}   
 
 //--Start insertion of the event------
 if(e['Message'] != null) delete e['Message'] //problematic for server-side parsing... it is repeated data anyway
@@ -234,6 +193,7 @@ case "ProcessCreate":
             // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
           	db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
                         WHERE Hostname = ?',r[0].getProperty('id'),e['Hostname'])
+            db.command('UPDATE ? Set Sequence = "System > smss.exe"', r[0].getProperty('@rid'))
         }
     
         // update explorer.exe ID into cache table to find Type A (BeforeExplorer) process      

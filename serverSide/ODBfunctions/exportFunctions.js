@@ -17,9 +17,9 @@ async function exportFunctions(){
                 return console.log(err);
             }
             console.log("The file was saved!");
+            process.exit()
         }); 
     })
 }
 
 exportFunctions();
-process.exit()
