@@ -19,7 +19,7 @@ function eventHandler(newpc) {
     }
 }
 
-setInterval(function(){ processQueue()},200); //too short will cause partial sequence
+setInterval(function(){ processQueue()},300); //too short will cause partial sequence
 
 function processQueue(){
     if(_processCreateQ.length == 0){ return; }
