@@ -19,7 +19,7 @@ function eventHandler(newpc) {
     }
 }
 
-setInterval(function(){ processQueue()},600);
+setInterval(function(){ processQueue()},200); //too short will cause partial sequence
 
 function processQueue(){
     if(_processCreateQ.length == 0){ return; }
@@ -76,7 +76,7 @@ function connectParentOf(sourceRID, targetRID) {
     _session.command('CREATE EDGE ParentOf FROM ' + sourceRID +'  TO ' + targetRID)    
     .on('data',(results)=> {
         updateToBeProcessed(targetRID)
-        updateParentOfSequence(targetRID,0)
+        //updateParentOfSequence(targetRID,0)
     }) 
     .on('error',(err)=> {
         var msg = '' + err
