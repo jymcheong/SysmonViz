@@ -73,11 +73,9 @@ function processQueue(){
 }
 
 function connectParentOf(sourceRID, targetRID) {    
-    //console.log('CREATE EDGE ParentOf FROM ' + sourceRID +' TO ' + targetRID)
     _session.command('CREATE EDGE ParentOf FROM ' + sourceRID +'  TO ' + targetRID)    
     .on('data',(results)=> {
         updateToBeProcessed(targetRID)
-        //updateParentOfSequence(targetRID,0)
     }) 
     .on('error',(err)=> {
         var msg = '' + err
