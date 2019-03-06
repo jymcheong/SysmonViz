@@ -27,7 +27,7 @@ function processQueue(){
     var parentRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
     if(parentRID) {
         if(newpc['ParentImage'] == 'C:\\Windows\\System32\\svchost.exe' && newpc['Image'] == 'C:\\Windows\\System32\\wininit.exe') {
-            console.log('Circular path found...') // the following fixes it
+            console.log('Circular path found... ' + newpc['@rid']) // the following fixes it
             _session.query("select from pc Where ParentImage like '%smss.exe' AND Image like '%smss.exe' AND ProcessId = :id order by id desc limit 1", 
             { params : {id: newpc['ParentProcessId']}})
             .all()
@@ -35,7 +35,8 @@ function processQueue(){
                 if(data.length > 0){
                     _session.command("UPDATE " + newpc['@rid'] + " SET ParentProcessGuid = :p1, ParentProcessId = :p2, ParentImage = :p3, ParentCommandLine = :p4"
                     ,{ params : {p1: data[0]['ParentProcessGuid'], p2: data[0]['ParentProcessId'], p3: data[0]['ParentImage'], p4: data[0]['ParentCommandLine'] }} )
-                    .on('data',(results)=> { 
+                    .on('data',(results)=> {
+                        console.log('Updated parent process fields for affected entry...' + newpc['@rid'])
                         parentRID = data[0]['@rid']
                         connectParentOf(parentRID, newpc['@rid'])
                         _processCreateQ.shift()
@@ -90,6 +91,7 @@ function connectParentOf(sourceRID, targetRID) {
     })   
 }
 
+/*
 function linkSequenceToProcessCreate(sourceRID, targetRID, edgeClass) {
     _session.command('CREATE EDGE '+ edgeClass +' from ' + sourceRID + ' TO ' + targetRID)
     .on('data', (ss) => {
@@ -146,3 +148,5 @@ function updateParentOfSequence(targetRID, retry){
         })
     })
 }
+
+*/
