@@ -6,11 +6,9 @@ startLiveQuery("select from processcreate")
 var _mapProcessCreate = new Map()
 var _processCreateQ = []
 
-// a fix function name that is used within startLiveQuery
-function eventHandler(newpc) {
+function eventHandler(newpc) { // a fix function name that is used within startLiveQuery
     var rid = '' + newpc['@rid']
-    _mapProcessCreate.set(newpc['Hostname'] + newpc['ProcessGuid'], rid)
-    //console.log('Wrote to cache for ' + newpc['Image'])
+    _mapProcessCreate.set(newpc['Hostname'] + newpc['ProcessGuid'], rid) //cache it both in memory & file
     fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ProcessGuid'], newpc['@rid'], function(err) { 
         if(err) { console.log(err); return; } 
     });
