@@ -46,7 +46,7 @@ function processQueue(){
     if(_processCreateQ.length == 0) return; 
     var newpc = _processCreateQ[0];
     if(newpc['ParentImage'].indexOf('svchost.exe') > 0 && (newpc['Image'].indexOf('wininit.exe') > 0 || newpc['Image'].indexOf('csrss.exe') > 0)) {
-        console.log('Circular path found... ' + newpc['@rid']) // the following fixes a Sysmon BUG
+        console.log('Sysmon bug found... ' + newpc['@rid']) // the following fixes a Sysmon BUG
         fixParent(newpc)
     }
     else {
