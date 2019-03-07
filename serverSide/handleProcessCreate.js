@@ -26,7 +26,7 @@ function processQueue(){
     var parentRID = _mapProcessCreate.get(newpc['Hostname'] + newpc['ParentProcessGuid'])
     if(parentRID) {
         if(newpc['ParentImage'] == 'C:\\Windows\\System32\\svchost.exe' && newpc['Image'] == 'C:\\Windows\\System32\\wininit.exe') {
-            console.log('Circular path found... ' + newpc['@rid']) // the following fixes it
+            console.log('Circular path found... ' + newpc['@rid']) // the following fixes it, this is a Sysmon BUG
             _session.query("select from pc Where ParentImage like '%smss.exe' AND Image like '%smss.exe' AND ProcessId = :id order by id desc limit 1", 
             { params : {id: newpc['ParentProcessId']}})
             .all()
