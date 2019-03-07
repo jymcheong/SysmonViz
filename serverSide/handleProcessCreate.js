@@ -63,7 +63,7 @@ function processQueue(){
                 _mapProcessCreate.set(newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'])
                 fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'], function(err) { if(err) console.log(err) });
             }
-            else {
+            else { // retry...
                 var key = newpc['ParentProcessGuid'] + newpc['Hostname']
                 if(key in _retries) {
                     if(_retries[key] == 10) { // max wait for 1 sec (10 x 100ms interval)
