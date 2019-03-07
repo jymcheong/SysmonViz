@@ -6,11 +6,10 @@
 
 var db = orient.getDatabase();
 
-function linkSequenceToProcessCreate(sequenceRid, edgeClass) {
+function linkSequenceToProcessCreate(sequenceRid) {
   for(var i = 0; i < 3; i++){ //retry mechanism
-  	try{ // one edge is PC -> Sequence , the other is Sequence -> PC
-      if(edgeClass == 'hasSequence') db.command('CREATE EDGE ' + edgeClass + ' FROM ? TO ?', doc.field('in').field('@rid'), sequenceRid)
-      if(edgeClass == 'SequenceSighted') db.command('CREATE EDGE ' + edgeClass + ' FROM ? TO ?', sequenceRid, doc.field('in').field('@rid'))
+  	try{ 
+      db.command('CREATE EDGE SequenceSighted FROM ? TO ?', sequenceRid, doc.field('in').field('@rid'))
       break;
     }
     catch(err){
@@ -27,10 +26,11 @@ function updateSequence(){
       try{
          var prevSeq = '' + doc.field('out').field('Sequence');
          if(prevSeq.indexOf('System') < 0) {
-            print('Found partial sequence, attempt to fix...')
+            print('Found partial sequence, attempt to fix...' + prevSeq)
          	var ps = db.query('SELECT GetParentOfSequence(?) as seq', doc.field('out').field('@rid'))
             prevSeq = ps[0].field('seq')
             if(prevSeq.indexOf('System') < 0) continue;
+            print('Sequence from GetParentOfSequence: ' + prevSeq);
             db.command('UPDATE ? SET Sequence = ? RETURN AFTER Sequence', doc.field('out').field('@rid'), prevSeq)
          }
          var s = db.command('UPDATE ? SET Sequence = ? RETURN AFTER Sequence', doc.field('in').field('@rid'),
@@ -40,8 +40,9 @@ function updateSequence(){
 				  UPSERT RETURN AFTER @rid, Count, Score WHERE Sequence = ?',s[0].field('Sequence')) 
          
          print(sc[0].field('Count') + '|'+ s[0].field('Sequence'));
-         var edgeClass = sc[0].field('Score') > 0 || sc[0].field('Count') == 1 ? 'SequenceSighted' : 'hasSequence';
-		 linkSequenceToProcessCreate(sc[0].field('@rid'), edgeClass)
+         if(sc[0].field('Score') > 0 || sc[0].field('Count') == 1)
+		 	      linkSequenceToProcessCreate(sc[0].field('@rid'))
+        
          break;
       }
       catch(err){

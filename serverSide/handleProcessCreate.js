@@ -5,6 +5,7 @@ startLiveQuery("select from processcreate")
 
 var _mapProcessCreate = new Map()
 var _processCreateQ = []
+var _retries = {}
 
 function eventHandler(newpc) { // a fix function name that is used within startLiveQuery
     var rid = '' + newpc['@rid']
@@ -17,7 +18,7 @@ function eventHandler(newpc) { // a fix function name that is used within startL
     }
 }
 
-setInterval(function(){ processQueue()},300); //too short will cause partial sequence
+setInterval(function(){ processQueue()},100); 
 
 function processQueue(){
     if(_processCreateQ.length == 0){ return; }
@@ -62,9 +63,16 @@ function processQueue(){
                 fs.writeFile(_cacheProcessCreateRID + '/' + newpc['Hostname'] + newpc['ParentProcessGuid'], data[0]['@rid'], function(err) { if(err) console.log(err) });
             }
             else {
-                console.log('Cannot find ' + newpc['ParentProcessGuid'] + ' for '+ newpc['Image'] + ' on ' + newpc['Hostname'])
-                _processCreateQ.shift()
-                fs.writeFile(_cacheProcessCreateRID + '/MISSING-' + newpc['Hostname'] + newpc['ParentProcessGuid'], '', function(err) { if(err) console.log(err) });
+                var key = newpc['ParentProcessGuid'] + newpc['Hostname']
+                if(key in _retries) {
+                    if(_retries[key] == 10) { // max wait for 1 sec (10 x 100ms interval)
+                        console.log('Cannot find ' + newpc['ParentProcessGuid'] + ' for '+ newpc['Image'] + ' on ' + newpc['Hostname'])
+                        _processCreateQ.shift()
+                        fs.writeFile(_cacheProcessCreateRID + '/MISSING-' + newpc['Hostname'] + newpc['ParentProcessGuid'], '', function(err) { if(err) console.log(err) });
+                    }
+                    else { _retries[key]++ } // max wait is only done once
+                }
+                else { _retries[key] =  1 }
             }
         });
     }
