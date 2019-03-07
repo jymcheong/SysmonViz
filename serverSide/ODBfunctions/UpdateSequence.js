@@ -26,7 +26,7 @@ function updateSequence(){
       try{
          var prevSeq = '' + doc.field('out').field('Sequence');
          if(prevSeq.indexOf('System') < 0) {
-            print('Found partial sequence, attempt to fix...' + prevSeq)
+            print('Found partial sequence, attempt to fix: ' + prevSeq)
          	var ps = db.query('SELECT GetParentOfSequence(?) as seq', doc.field('out').field('@rid'))
             prevSeq = ps[0].field('seq')
             if(prevSeq.indexOf('System') < 0) continue;
@@ -41,7 +41,7 @@ function updateSequence(){
          
          print(sc[0].field('Count') + '|'+ s[0].field('Sequence'));
          if(sc[0].field('Score') > 0 || sc[0].field('Count') == 1)
-		 	      linkSequenceToProcessCreate(sc[0].field('@rid'))
+		 	linkSequenceToProcessCreate(sc[0].field('@rid'))
         
          break;
       }
@@ -53,4 +53,3 @@ function updateSequence(){
 }
 
 updateSequence()
-// Partial sequence are those with missing "System > " 
