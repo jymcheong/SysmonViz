@@ -24,12 +24,11 @@ for(var i = 0; i < 6; i++){ //retry mechanism
   try{
       var prevSeq = '' + doc.field('out').field('Sequence');
       if(prevSeq.indexOf('System') < 0) {
-        print('Found partial sequence, attempt to fix: ' + prevSeq)
-      	var ps = db.query('SELECT GetParentOfSequence(?) as seq', doc.field('out').field('@rid'))
+        print('Found partial sequence, attempt to fix: ' + prevSeq + ' from ' + doc.field('out').field('@rid'))
+        var ps = db.query('SELECT GetParentOfSequence(?) as seq', doc.field('out').field('@rid'))
         prevSeq = ps[0].field('seq')
         print('GetParentOfSequence found: ' + prevSeq + ' for ' + doc.field('out').field('@rid'))
         if(prevSeq.indexOf('System') < 0) continue;
-        print('Sequence from GetParentOfSequence: ' + prevSeq);
         db.command('UPDATE ? SET Sequence = ? RETURN AFTER Sequence', doc.field('out').field('@rid'), prevSeq)
       }
       var s = db.command('UPDATE ? SET Sequence = ? RETURN AFTER Sequence', doc.field('in').field('@rid'),
