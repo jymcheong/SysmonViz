@@ -13,8 +13,7 @@ function linkSequenceToProcessCreate(sequenceRid) {
       break;
     }
     catch(err){
-      var e = '' + err
-	  if(e.indexOf('UPDATE') >= 0) continue;
+      if(err.indexOf('UPDATE') >= 0) continue;
     }
   }
 }
@@ -26,17 +25,18 @@ for(var i = 0; i < 6; i++){ //retry mechanism
       var prevSeq = '' + doc.field('out').field('Sequence');
       if(prevSeq.indexOf('System') < 0) {
         print('Found partial sequence, attempt to fix: ' + prevSeq)
-      var ps = db.query('SELECT GetParentOfSequence(?) as seq', doc.field('out').field('@rid'))
+      	var ps = db.query('SELECT GetParentOfSequence(?) as seq', doc.field('out').field('@rid'))
         prevSeq = ps[0].field('seq')
+        print('GetParentOfSequence found: ' + prevSeq + ' for ' + doc.field('out').field('@rid'))
         if(prevSeq.indexOf('System') < 0) continue;
         print('Sequence from GetParentOfSequence: ' + prevSeq);
         db.command('UPDATE ? SET Sequence = ? RETURN AFTER Sequence', doc.field('out').field('@rid'), prevSeq)
       }
       var s = db.command('UPDATE ? SET Sequence = ? RETURN AFTER Sequence', doc.field('in').field('@rid'),
-                prevSeq + ' > ' + exename) //updates ProcessCreate vertice
-      
+                			prevSeq + ' > ' + exename) //updates ProcessCreate vertice
+      	
       var sc = db.command('UPDATE ParentOfSequence SET Count = Count + 1 \
-      UPSERT RETURN AFTER @rid, Count, Score WHERE Sequence = ?',s[0].field('Sequence')) 
+      						UPSERT RETURN AFTER @rid, Count, Score WHERE Sequence = ?',s[0].field('Sequence')) 
       
       print(s[0].field('Sequence') + '|' + sc[0].field('Count'));
       if(sc[0].field('Score') > 0 || sc[0].field('Count') == 1) linkSequenceToProcessCreate(sc[0].field('@rid'))
@@ -44,7 +44,6 @@ for(var i = 0; i < 6; i++){ //retry mechanism
       break;
   }
   catch(err){
-      var e = '' + err
-  if(e.indexOf('UPDATE') >= 0) continue; 
+    if(err.indexOf('UPDATE') >= 0) continue; 
   }
 }
