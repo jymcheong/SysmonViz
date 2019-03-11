@@ -19,35 +19,28 @@ var fileQueue = []
 // ODB cannot cope with too many backlog files
 console.log('Starting file monitoring....')
 
-const OrientDBClient = require("orientjs").OrientDBClient
-    OrientDBClient.connect({ host: _host ,port: _port})
-    .then(client => {
-        _client = client; //used in cleanup.js
-        client.session({ name: _dbname, username: _user, password: _pass })
-        .then(session => {
-            console.log('session opened')
-            _session = session //used in cleanup.js
-            console.log('Reading existing files...')
-            // please quickly start this script after VM starts up
-            // ODB cannot cope with too many backlog files
-            fs.readdir(directory_to_monitor, function(err, items) {
-                console.log(items); 
-                for (var i=0; i<items.length; i++) {
-                    if(items[i].indexOf('rotated')>= 0 && items[i].indexOf('.txt')>= 0) {
-                        console.log('adding ' + items[i]);
-                        fileQueue.push(directory_to_monitor + '/' + items[i])
-                    var logdir = directory_to_monitor + '/' + items[i];
-                    if(fs.existsSync(logdir.replace('.txt','')) == true) { 
+async function startDB(){
+    await connectODB();
+    console.log('client & session opened')
+    fs.readdir(directory_to_monitor, function(err, items) {
+        console.log(items); 
+        for (var i=0; i<items.length; i++) {
+            if(items[i].indexOf('rotated')>= 0 && items[i].indexOf('.txt')>= 0) {
+                console.log('adding ' + items[i]);
+                fileQueue.push(directory_to_monitor + '/' + items[i])
+                var logdir = directory_to_monitor + '/' + items[i];
+                if(fs.existsSync(logdir.replace('.txt','')) == true) { 
                     fs.rmdirSync(logdir.replace('.txt','')); 
-                    }
-                    }
                 }
-                processFile(fileQueue.shift())
-            });
-        })
-    })
+            }
+        }
+        processFile(fileQueue.shift())
+    });
+}
 
+startDB();
 startFileMonitor() 
+setInterval(() => { global.gc() }, 3000);
 //processFile('/tmp/events.txt') // test single file
 
 //https://stackoverflow.com/questions/16010915/parsing-huge-logfiles-in-node-js-read-in-line-by-line
@@ -57,10 +50,10 @@ function processFile(filepath) {
     console.log('Processing ' + filepath)
     var s = fs.createReadStream(filepath)
         .pipe(es.split())
-        .pipe(es.mapSync(function(line) {            
+        .pipe(es.mapSync(async function(line) {            
             s.pause();
             // process line here and call s.resume() when rdy
-            processLine(line)
+            await processLine(line)
             // resume the readstream, possibly from a callback
             s.resume();
         })
@@ -91,23 +84,26 @@ function processFile(filepath) {
 
 //push most of the logic into server side function
 function processLine(eventline) {
-    try {
-        if(eventline.length > 0) {
-            var e = JSON.parse(eventline.trim()) //to test if it is valid JSON            
-            stmt = "select AddEvent(:data)"
-            lineCount++
-            _session.query(stmt,{params:{data:escape(eventline)}})
-            .on("data", data => { 
-                rowCount++
-            });
+    return new Promise( async(resolve, reject) => { 
+        try {
+            if(eventline.length > 0) {
+                //var e = JSON.parse(eventline.trim()) //to test if it is valid JSON            
+                stmt = "select AddEvent(:data)"
+                lineCount++
+                _session.query(stmt,{params:{data:escape(eventline)}})
+                .on("data", data => { 
+                    resolve(++rowCount)
+                });
+            }
         }
-    }
-    catch(err) {
-        console.error('line length: ' + eventline.length)
-        console.error('invalid JSON line:')
-        console.error(eventline)
-        console.error(err)
-    }
+        catch(err) {
+            console.error('line length: ' + eventline.length)
+            console.error('invalid JSON line:')
+            console.error(eventline)
+            console.error(err)
+            reject(err)
+        }
+    })
 }
 
 // based on https://github.com/Axosoft/nsfw example
@@ -118,16 +114,11 @@ function startFileMonitor() {
         directory_to_monitor,
         function(events) { // array of file action events
             for(i = 0, len = events.length; i < len; i++){
-                elem = events[i]
-                //console.log(elem)
-                if(elem['action'] == 0) { // only interested with file renamed
+                if(events[i]['action'] == 0) { // only interested with file renamed
                     // a dir is created after file completes upload
-                    var newfile = "" + elem['directory'] + "/" + elem['file']
-                            // expecting 'rotated' in the nxlog log file
+                    var newfile = "" + events[i]['directory'] + "/" + events[i]['file']                            
                     if(newfile.indexOf('.txt') > 0) continue;
-                    //console.log(elem)
-                    //console.log(newfile)
-                    if(newfile.indexOf('rotated') > -1){ 
+                    if(newfile.indexOf('rotated') > -1){ // expecting 'rotated' in the nxlog log file
                         fs.rmdirSync(newfile);
                         fileQueue.push(newfile + '.txt');
                         processFile(fileQueue.shift());
