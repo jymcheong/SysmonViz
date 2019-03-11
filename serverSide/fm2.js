@@ -39,7 +39,12 @@ async function startDB(){
 }
 
 startDB();
-startFileMonitor() 
+startFileMonitor()
+
+/**
+ * Need to start with expose gc, eg:
+ * pm2 restart 14 --node-args="--expose_gc"
+ *  */ 
 setInterval(() => { global.gc() }, 3000);
 //processFile('/tmp/events.txt') // test single file
 
