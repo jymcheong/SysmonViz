@@ -1,4 +1,4 @@
-require('console-stamp')(console, 'HH:MM:ss.l')
+require('console-stamp')(console, 'yyyy-mm-dd HH:MM:ss.l')
 
 var _edgeLookup = {'ProcessTerminate':'Terminated', 'PipeCreated':'CreatedPipe',
                     'PipeConnected':'ConnectedPipe', 'RawAccessRead':'RawRead',
@@ -77,18 +77,18 @@ async function closeDBsession(){
 
 process.stdin.resume(); //so the program will not close instantly
 
-function exitHandler(err) {
+async function exitHandler(err) {
     if(_exiting) return;
     _exiting = true
-    setTimeout(function(){ closeDBsession()},1000);
-    if(err != null) console.log(err)
     console.log('cleaning up...')    
+    if(err != null) console.log(err)
     var i = 0, j = _handles.length
     console.log('No of handles: ' + j)
     while(_handles.length > 0) {
         console.log('Unsubscribed handle #' + i++)
-        _handles.shift().unsubscribe()
+        await _handles.shift().unsubscribe()
     }
+    closeDBsession();
 }
 
 process.on('exit', exitHandler.bind(null));
