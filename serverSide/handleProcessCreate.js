@@ -18,7 +18,7 @@ function eventHandler(newpc) { // a fix function name that is used within startL
     }
 }
 
-setInterval(function(){ processQueue()},100); 
+setInterval(function(){ processQueue()},200); 
 
 
 function fixParent(newpc) {

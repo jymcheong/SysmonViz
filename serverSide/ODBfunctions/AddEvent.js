@@ -111,6 +111,8 @@ if(e["SourceName"] == "Microsoft-Windows-Sysmon"){
     if(match != null) e['ProcessId'] = parseInt(match[1]);
     if(e["SourceProcessGUID"]) e["SourceProcessGuid"] = e["SourceProcessGUID"]; 
     if(e["TargetProcessGUID"]) e["TargetProcessGuid"] = e["TargetProcessGUID"]; 
+  
+    // fix Sysmon bug here...
 }
 
 // DataFusion Process Monitor events
@@ -256,28 +258,9 @@ case "ImageLoad":
                     UPSERT RETURN AFTER @rid, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
         break;
     
+case "CreateRemoteThread": //ID8  
 case "DriverLoad": //ID6
-        var u = db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
-                    UPSERT RETURN AFTER @rid, Count, BaseLined WHERE ImageLoaded = ? AND Hashes = ?',
-                    e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
-        
-        if(u[0].getProperty('BaseLined') == false) {
-            print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
-            retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
-            retry("db.command('CREATE EDGE UsedAsDriver FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT DriverLoad FROM ?) order by id desc limit 1) TO ?','" + e['Hostname'] + "',r[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-        } 
-        break;
-
-case "CreateRemoteThread": //ID8 - CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
-        var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?',
-                            e['TargetProcessGuid'],e['Hostname']);
-        if(target.length > 0) {
-          retry("db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].field('@rid'), target[0].field('@rid'))")
-          print('Done RemoteThreadFor')
-        }      
-        // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
-        retry("db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?) TO ?',r[0].field('SourceProcessGuid'),r[0].field('Hostname'),r[0].field('@rid'))")
-        print('Done CreatedThread')
+    	db.command('INSERT INTO TriggerProcessing SET FunctionName = ?, rid = ?', classname, r[0].field('@rid'))
         break;
     
 case "NetworkConnect":       
