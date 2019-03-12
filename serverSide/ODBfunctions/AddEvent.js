@@ -75,9 +75,10 @@ function checkForeign(e, pc_rid, classname, insertSQL) {
             pc_rid = dll[0].getProperty('@rid');
         }
     	var edgename = classname == 'ProcessCreate' ? "ExeSighted" : "DllSighted";
-        print('Link '+ edgename + ' from ' + foreign[0].getProperty('@rid') + ' to ' + pc_rid)
         retry("db.command('CREATE EDGE " + edgename + " FROM " + foreign[0].getProperty('@rid') +" TO " + pc_rid + "')")
         retry("db.command('UPDATE " + foreign[0].getProperty('@rid') +" SET ToBeProcessed = false')")
+        print('Link '+ edgename + ' from ' + foreign[0].getProperty('@rid') + ' to ' + pc_rid)
+        if(classname == 'ImageLoad') db.query('Select ImageLoad(?)',pc_rid)
     }
 }
 
@@ -118,7 +119,8 @@ if(e["SourceName"] == "Microsoft-Windows-Sysmon"){
 // DataFusion Process Monitor events
 if(e["SourceName"] == "DataFusionProcMon"){
     var classname = e['Class']; delete e['Class'];
-    db.command("INSERT INTO "+ classname + " CONTENT " + JSON.stringify(e));
+    var pm = db.command("INSERT INTO "+ classname + " CONTENT " + JSON.stringify(e));
+    //print(pm[0].field('@rid'))
 	return;
 }
 
@@ -177,12 +179,14 @@ var jsonstring = JSON.stringify(e)
 var id = (new Date())*1
 jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
 var stmt = 'INSERT INTO '+ classname + ' CONTENT ' + jsonstring
+var r = null
 if(classname != 'ImageLoad') {
     try {
-        var r = db.command(stmt);
+        r = db.command(stmt);
     }
     catch(err){
         print(Date() + ' Error inserting ' + stmt)
+        db.command('INSERT INTO FailedJSON SET line = ?', logline)
         return
     }
 } else checkForeign(e, "", classname, stmt); //insert foreign DLL within checkForeign
@@ -191,14 +195,12 @@ if(classname != 'ImageLoad') {
 switch(classname) {
 case "ProcessCreate":
         var current_id = r[0].getProperty('id')
-        //print(Date() + " AddEvent for " + classname + " " + e['Image'] + ':' + e['ProcessGuid'] + " on " + e['Hostname'])
-        if(e['ParentImage'] == "System") {// smss.exe
+        if(e['ParentImage'] == "System") { //update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
             print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
-            // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
+            
           	db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
                         WHERE Hostname = ?',r[0].getProperty('id'),e['Hostname'])
         }
-    
         // update explorer.exe ID into cache table to find Type A (BeforeExplorer) process      
         if(e['ParentImage'].indexOf("Windows\\System32\\userinit.exe") > 0) {// explorer.exe
             print(Date() + " Found " + e['Image'] + " on " + e['Hostname'])
@@ -247,21 +249,11 @@ case "ProcessCreate":
         }
     
         break;
-    
-case "ImageLoad": 
-        // track Full-path & Hashes
-        db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
-                    UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
-                    e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
-        // track ONLY Hashes
-        db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
-                    UPSERT RETURN AFTER @rid, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
-        break;
-    
+
 case "CreateRemoteThread": //ID8  
 case "DriverLoad": //ID6
-    	db.command('INSERT INTO TriggerProcessing SET FunctionName = ?, rid = ?', classname, r[0].field('@rid'))
-        break;
+       retry("db.command('INSERT INTO TriggerProcessing SET FunctionName = ?, rid = ?', classname, r[0].field('@rid'))")
+       break;
     
 case "NetworkConnect":       
         var u = db.command('UPDATE NetworkDestinationPort set Count = Count + 1 \
