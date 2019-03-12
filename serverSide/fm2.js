@@ -58,7 +58,7 @@ function processFile(filepath) {
         .pipe(es.mapSync(async function(line) {            
             s.pause();
             // process line here and call s.resume() when rdy
-            await processLine(line)
+            processLine(line)
             // resume the readstream, possibly from a callback
             s.resume();
         })
@@ -69,22 +69,27 @@ function processFile(filepath) {
             console.log('Files in queue: ' + fileQueue.length)
             console.log('Total line count: ' + lineCount) // tally with row count
             console.log('Total row count:' + rowCount)
-            console.log('Delta: ' + (lineCount - rowCount)) 
+            console.log('Delta: ' + (lineCount - rowCount))     
             setTimeout(function(){ // delayed delete to mitigate any file contention
-                fs.unlink(filepath, (err) => {
-                  if (err) {
-                    console.log(filepath + ' delete error');
-                  }
-                  else {
-                    console.log(filepath + ' was deleted');
-                  }    
-                });
+                deleteFile(filepath)
             },200)
             if(fileQueue.length > 0){
                 processFile(fileQueue.shift())
             }
         })
     );    
+}
+
+function deleteFile(filepath) {
+    fs.unlink(filepath, (err) => {
+        if (err) {
+          console.error('retry deleting ' + filepath);
+          deleteFile(filepath)
+        }
+        else {
+          console.log(filepath + ' was deleted');
+        }    
+      });
 }
 
 //push most of the logic into server side function
@@ -95,10 +100,9 @@ function processLine(eventline) {
                 //var e = JSON.parse(eventline.trim()) //to test if it is valid JSON            
                 stmt = "select AddEvent(:data)"
                 lineCount++
-                _session.query(stmt,{params:{data:escape(eventline)}})
-                .on("data", data => { 
-                    resolve(++rowCount)
-                });
+                await _session.query(stmt,{params:{data:escape(eventline)}}).all()
+                resolve(++rowCount)
+                
             }
         }
         catch(err) {
