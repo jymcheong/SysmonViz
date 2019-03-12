@@ -61,8 +61,7 @@ function checkSpoof(e, rid){
             retry("db.command('CREATE EDGE TrueParentOf FROM " + trueParent[0].getProperty('@rid') + " to " + rid + "')")
         }
         
-	}
-    
+	}   
 }
 
 function checkForeign(e, pc_rid, classname, insertSQL) {
@@ -79,16 +78,14 @@ function checkForeign(e, pc_rid, classname, insertSQL) {
         print('Link '+ edgename + ' from ' + foreign[0].getProperty('@rid') + ' to ' + pc_rid)
         retry("db.command('CREATE EDGE " + edgename + " FROM " + foreign[0].getProperty('@rid') +" TO " + pc_rid + "')")
         retry("db.command('UPDATE " + foreign[0].getProperty('@rid') +" SET ToBeProcessed = false')")
-            //db.command('INSERT INTO Watchlist SET Hostname = ?, ProcessGuid = ?, rid = ?', e['Hostname'], e['ProcessGuid'], pc_rid)
-		
     }
-    
 }
 
 
 var logline = unescape(jsondata)
+var e = null
 try {
-  var e = rewriteProperties(JSON.parse(logline)); 
+  e = rewriteProperties(JSON.parse(logline)); 
 }
 catch(err) {
    print(Date() + ' Offending line ' + logline);
@@ -167,8 +164,13 @@ if(e["SourceName"] == "DataFuseNetwork_v2"){
 }
 
 
-//--Start insertion of the event------
+//--Insert event------
 if(e['Message'] != null) delete e['Message'] //problematic for server-side parsing... it is repeated data anyway
+
+if(e['ParentImage'] == "System") {
+	e['Sequence'] = 'System > smss.exe'
+}
+
 var jsonstring = JSON.stringify(e)
 var id = (new Date())*1
 jsonstring = jsonstring.slice(0,-1) + ",\"id\":" + id + '}'
@@ -182,7 +184,7 @@ if(classname != 'ImageLoad') {
         return
     }
 } else checkForeign(e, "", classname, stmt); //insert foreign DLL within checkForeign
-//--End insertion of the event------
+//--End insert event------
 
 switch(classname) {
 case "ProcessCreate":
@@ -193,7 +195,6 @@ case "ProcessCreate":
             // update SMSS.exe ID into cache table to find Type A (BeforeExplorer) process
           	db.command('UPDATE TypeA_id_cache SET smss_id = ? UPSERT \
                         WHERE Hostname = ?',r[0].getProperty('id'),e['Hostname'])
-            db.command('UPDATE ? Set Sequence = "System > smss.exe"', r[0].getProperty('@rid'))
         }
     
         // update explorer.exe ID into cache table to find Type A (BeforeExplorer) process      
@@ -247,13 +248,12 @@ case "ProcessCreate":
     
 case "ImageLoad": 
         // track Full-path & Hashes
-        var u = db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
+        db.command('UPDATE ImageLoadedHashes set Count = Count + 1 \
                     UPSERT RETURN AFTER @rid, Count WHERE ImageLoaded = ? AND Hashes = ?',
                     e['ImageLoaded'],e['Hashes'],e['ImageLoaded'],e['Hashes'])
         // track ONLY Hashes
-        u = db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
+        db.command('UPDATE ImageLoadedHashes set HashCount = HashCount + 1 \
                     UPSERT RETURN AFTER @rid, HashCount, BaseLined WHERE Hashes = ?',e['Hashes'])
-   		    
         break;
     
 case "DriverLoad": //ID6
@@ -265,22 +265,19 @@ case "DriverLoad": //ID6
             print(Date() + "Sys First Sighting of " + e['ImageLoaded'])
             retry("db.command('CREATE EDGE SysSighted from ? TO ?', u[0].getProperty('@rid'), r[0].getProperty('@rid'))")
             retry("db.command('CREATE EDGE UsedAsDriver FROM (SELECT FROM FileCreate WHERE Hostname = ? AND TargetFilename in (SELECT DriverLoad FROM ?) order by id desc limit 1) TO ?','" + e['Hostname'] + "',r[0].getProperty('@rid'),r[0].getProperty('@rid'))")
-        }
+        } 
         break;
 
 case "CreateRemoteThread": //ID8 - CreateRemoteThread-[RemoteThreadFor:TargetProcessGuid]->ProcessCreate
-        //print('handling CreateRemoteThread ' + e['TargetProcessGuid'] + ' ' + e['Hostname'])
         var target = db.query('SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?',
                             e['TargetProcessGuid'],e['Hostname']);
         if(target.length > 0) {
-          //print('Found ' +  target[0].getProperty('@rid'));
-          db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].getProperty('@rid'), target[0].getProperty('@rid'));
-          //print('Done RemoteThreadFor')
+          retry("db.command('CREATE EDGE RemoteThreadFor FROM ? TO ?', r[0].field('@rid'), target[0].field('@rid'))")
+          print('Done RemoteThreadFor')
         }      
         // ProcessCreate-[CreatedThread:SourceProcessGuid]->CreateRemoteThread
-        db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) \
-                    WHERE Hostname = ?) TO ?',e['SourceProcessGuid'],e['Hostname'],r[0].getProperty('@rid'))
-        //print('Done CreatedThread')
+        retry("db.command('CREATE EDGE CreatedThread FROM (SELECT FROM (SELECT FROM ProcessCreate WHERE ProcessGuid = ?) WHERE Hostname = ?) TO ?',r[0].field('SourceProcessGuid'),r[0].field('Hostname'),r[0].field('@rid'))")
+        print('Done CreatedThread')
         break;
     
 case "NetworkConnect":       
