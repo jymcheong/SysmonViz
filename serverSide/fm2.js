@@ -100,9 +100,10 @@ function processLine(eventline) {
                 //var e = JSON.parse(eventline.trim()) //to test if it is valid JSON            
                 stmt = "select AddEvent(:data)"
                 lineCount++
-                await _session.query(stmt,{params:{data:escape(eventline)}}).all()
+                await _session.query(stmt,{params:{data:escape(eventline)}}).all().catch(function(err) {
+                    reject(err)
+                });
                 resolve(++rowCount)
-                
             }
         }
         catch(err) {
