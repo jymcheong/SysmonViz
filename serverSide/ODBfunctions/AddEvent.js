@@ -46,7 +46,10 @@ function retry(command){
             print('Retrying ' + command)
             retry(command)
         }
-      	else print(command + " retry exception: " + err)
+      	else {
+          db.command('INSERT INTO Errors Set Command = ?, Message = ?',command, e)
+          print('Failed: ' + command + ' | Error: ' + e)
+       }
     }
 }
 
@@ -250,6 +253,7 @@ case "ProcessCreate":
     
         break;
 
+case "UserActionTracking":
 case "CreateRemoteThread": //ID8  
 case "DriverLoad": //ID6
        retry("db.command('INSERT INTO TriggerProcessing SET FunctionName = ?, rid = ?', classname, r[0].field('@rid'))")
@@ -264,8 +268,13 @@ case "NetworkConnect":
         	retry("db.command('CREATE EDGE DestinationPortSighted FROM ? TO ?',u[0].getProperty('@rid'),r[0].getProperty('@rid'))")
         } 
     	// look for destination IP address that matches BUT NOT the current Hostname
-        var destination = db.query('SELECT FROM NetworkAddress WHERE (IpAddress = ? OR Hostname = ?)\
-                                    AND Hostname <> ?',r[0].getProperty('DestinationIp'), r[0].getProperty('DestinationHostname'),r[0].getProperty('Hostname'))    
+        var destination
+        if(r[0].field('DestinationHostname')) {
+            destination = db.query('SELECT FROM NetworkAddress WHERE Hostname = ? AND Hostname <> ?', r[0].field('DestinationHostname'),r[0].field('Hostname')) 
+        }
+        else {
+            destination = db.query('SELECT FROM NetworkAddress WHERE IpAddress = ? AND Hostname <> ?', r[0].getProperty('DestinationIp'),r[0].field('Hostname')) 
+        }
         if(destination.length == 0) break;
     
     	// find the target listening-port
