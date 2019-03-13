@@ -128,7 +128,8 @@ function startFileMonitor() {
                     // a dir is created after file completes upload
                     var newfile = "" + events[i]['directory'] + "/" + events[i]['file']                            
                     if(newfile.indexOf('.txt') > 0) continue;
-                    if(newfile.indexOf('rotated') > -1){ // expecting 'rotated' in the nxlog log file
+                    // expecting 'rotated' directory that signals write is completed
+                    if(newfile.indexOf('rotated') > -1){ 
                         fs.rmdirSync(newfile);
                         fileQueue.push(newfile + '.txt');
                         processFile(fileQueue.shift());
