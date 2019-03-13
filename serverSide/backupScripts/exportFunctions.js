@@ -1,3 +1,10 @@
+/***
+ * This script exports all functions into functions.json
+ * 
+ * Import command with ODB console: 
+ *     import database functions.json -merge=true
+ */
+
 const fs = require("fs")
 eval(fs.readFileSync(__dirname +  '/../common.js')+'')
 
