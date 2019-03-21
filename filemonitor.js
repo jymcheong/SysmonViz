@@ -1,53 +1,53 @@
-const directory_to_monitor = "TARGETDIR";
-// Start ODB stuff ---CHANGE IT TO SUIT YOUR ENVIRONMENT!---
-// NOT FOR PRODUCTION USE
-var ODB_User = 'root'
-var ODB_pass = 'Password1234'
-var OrientDB = require('orientjs');
-var server = OrientDB({host: 'ODBSERVER', port: 2424});
-var db = server.use({name: 'DataFusion', username: ODB_User, password: ODB_pass, useToken : false});
-// End ODB stuff -------------------------
-// Use npm install to install local modules instead of global in Windoze!
-var fs = require('fs'), es = require('event-stream'); //install first: npm i event-stream
+const fs = require("fs")
+eval(fs.readFileSync(__dirname + '/common.js')+'');
+
+const directory_to_monitor = process.argv[2];
+if(process.argv[2] === undefined) {
+    console.log('Need a valid directory as parameter...'); 
+    directory_to_monitor = "C:/sysmonviz/logs"
+}
+else {
+    directory_to_monitor = process.argv[2];
+}
+
+if(!fs.existsSync(process.argv[2])) {
+    console.log('Need a valid directory as parameter...'); return;    
+}
+
+
+var es = require('event-stream'); //install first: npm i event-stream
 var lineCount = 0
 var rowCount = 0
 var fileQueue = []
-
-// https://stackoverflow.com/questions/14031763/doing-a-cleanup-action-just-before-node-js-exits
-process.stdin.resume();//so the program will not close instantly
-function exitHandler(err) {
-    console.log('cleaning up...')
-    db.close().then(function(){
-        process.exit();
-    })
-}
-process.on('exit', exitHandler.bind(null));
-process.on('SIGINT', exitHandler.bind(null));
-process.on('SIGUSR1', exitHandler.bind(null));
-process.on('SIGUSR2', exitHandler.bind(null));
-process.on('uncaughtException', exitHandler.bind(null));
-
-if (fs.existsSync(directory_to_monitor) == false) {
-    console.log('Folder to be monitored does not exist! Please change!')
-    process.exit();
-}
+var session = null
 
 // please quickly start this script after VM starts up
 // ODB cannot cope with too many backlog files
-fs.readdir(directory_to_monitor, function(err, items) {
-    console.log(items); 
-    for (var i=0; i<items.length; i++) {
-        if(items[i].indexOf('rotated')>= 0) {
-            console.log('adding ' + items[i]);
-            fileQueue.push(directory_to_monitor + '/' + items[i])
+console.log('Starting file monitoring....')
+
+async function startDB(){
+    session = await connectODB();
+    console.log('client & session opened')
+    session.query('SELECT RestartTimers()')
+    fs.readdir(directory_to_monitor, function(err, items) {
+        console.log(items); 
+        for (var i=0; i<items.length; i++) {
+            if(items[i].indexOf('rotated')>= 0 && items[i].indexOf('.txt')>= 0) {
+                console.log('adding ' + items[i]);
+                fileQueue.push(directory_to_monitor + '/' + items[i])
+                var logdir = directory_to_monitor + '/' + items[i];
+                if(fs.existsSync(logdir.replace('.txt','')) == true) { 
+                    fs.rmdirSync(logdir.replace('.txt','')); 
+                }
+            }
         }
-    }
-    processFile(fileQueue.shift())
-});
+        processFile(fileQueue.shift())
+    });
+}
 
-setInterval(function(){ db.query('select ConnectProcessCreate()') },3000)
+startDB();
+startFileMonitor()
 
-startFileMonitor() 
 //processFile('/tmp/events.txt') // test single file
 
 //https://stackoverflow.com/questions/16010915/parsing-huge-logfiles-in-node-js-read-in-line-by-line
@@ -57,33 +57,27 @@ function processFile(filepath) {
     console.log('Processing ' + filepath)
     var s = fs.createReadStream(filepath)
         .pipe(es.split())
-        .pipe(es.mapSync(function(line) {            
-            // pause the readstream
+        .pipe(es.mapSync(async function(line) {            
             s.pause();
             // process line here and call s.resume() when rdy
-            processLine(line)
+            try { processLine(line) }
+            catch(err) {
+                console.error(err)
+            }
             // resume the readstream, possibly from a callback
             s.resume();
         })
         .on('error', function(err){
-            console.log('Error while reading file.', err);
+            console.error('Error while reading file.', err);
         })
         .on('end', function(){
             console.log('Files in queue: ' + fileQueue.length)
             console.log('Total line count: ' + lineCount) // tally with row count
             console.log('Total row count:' + rowCount)
-            
+            console.log('Delta: ' + (lineCount - rowCount))     
             setTimeout(function(){ // delayed delete to mitigate any file contention
-            	fs.unlink(filepath, (err) => {
-                  if (err) {
-                    console.log(filepath + ' delete error');
-                  }
-                  else {
-                    console.log(filepath + ' was deleted');
-                  }    
-                });
+                deleteFile(filepath)
             },200)
-         
             if(fileQueue.length > 0){
                 processFile(fileQueue.shift())
             }
@@ -91,25 +85,38 @@ function processFile(filepath) {
     );    
 }
 
+function deleteFile(filepath) {
+    fs.unlink(filepath, (err) => {
+        if (err) {
+          console.error('retry deleting ' + filepath);
+          deleteFile(filepath)
+        }
+        else {
+          console.log(filepath + ' was deleted');
+        }    
+      });
+}
+
 //push most of the logic into server side function
 function processLine(eventline) {
-    try {
-        if(eventline.length > 0) {
-            JSON.parse(eventline.trim()) //to test if it is valid JSON            
-            stmt = "select AddEvent(:data)"
-            lineCount++
-            db.query(stmt,{params:{data:escape(eventline)}})
-                .then(function(response){ 
-                rowCount++
-            });
+    return new Promise( async(resolve, reject) => { 
+        try {
+            if(eventline.length > 0) {
+                //var e = JSON.parse(eventline.trim()) //to test if it is valid JSON            
+                stmt = "select AddEvent(:data)"
+                lineCount++
+                await _session.query(stmt,{params:{data:escape(eventline)}}).all();
+                resolve(++rowCount)
+            }
         }
-    }
-    catch(err) {
-        console.log('line length: ' + eventline.length)
-        console.log('invalid JSON line:')
-        console.log(eventline)
-        throw err
-    }
+        catch(err) {
+            console.error('line length: ' + eventline.length)
+            console.error('invalid JSON line:')
+            console.error(eventline)
+            console.error(err)
+            reject(null)
+        }
+    })
 }
 
 // based on https://github.com/Axosoft/nsfw example
@@ -120,12 +127,15 @@ function startFileMonitor() {
         directory_to_monitor,
         function(events) { // array of file action events
             for(i = 0, len = events.length; i < len; i++){
-                elem = events[i]
-                if(elem['action'] == 3) { // only interested with file renamed
-                    var newfile = "" + elem['directory'] + "/" + elem['newFile']
-                    // expecting 'rotated' in the nxlog log file
+                if(events[i]['action'] == 0) { // only interested with file renamed
+                    // a dir is created after file completes upload
+                    var newfile = "" + events[i]['directory'] + "/" + events[i]['file']                            
+                    if(newfile.indexOf('.txt') > 0) continue;
+                    // expecting 'rotated' directory that signals write is completed
                     if(newfile.indexOf('rotated') > -1){ 
-                        fileQueue.push(newfile)
+                        fs.rmdirSync(newfile);
+                        fileQueue.push(newfile + '.txt');
+                        processFile(fileQueue.shift());
                         if(fileQueue.length > 0) setTimeout(function(){ processFile(fileQueue.shift()); }, 500)
                     }
                 }
@@ -134,7 +144,7 @@ function startFileMonitor() {
         {
             debounceMS: 250,
             errorCallback(errors) {
-                console.log(errors)
+                console.error(errors)
             }
         })
         .then(function(watcher) {
@@ -142,3 +152,6 @@ function startFileMonitor() {
             return watcher.start();
         })
 }
+
+
+

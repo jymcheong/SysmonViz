@@ -84,6 +84,8 @@
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, ImageLoaded, Hashes, Signed, Signature, SignatureStatus-->
 		<ImageLoad onmatch="exclude">
+			<Signature condition="contains">microsoft</Signature> <!--Exclude signed Microsoft drivers-->
+			<Signature condition="contains">windows</Signature> <!--Exclude signed Microsoft drivers-->
 			<Image condition="is">C:\Windows\Sysmon.exe</Image>
  			<ImageLoaded condition="begin with">C:\Windows\System32</ImageLoaded>
 			<ImageLoaded condition="begin with">C:\Windows\WinSxS</ImageLoaded>
