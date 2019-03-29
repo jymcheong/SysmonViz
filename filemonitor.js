@@ -32,12 +32,11 @@ async function startDB(){
     fs.readdir(directory_to_monitor, function(err, items) {
         console.log(items); 
         for (var i=0; i<items.length; i++) {
-            if(items[i].indexOf('rotated')>= 0 && items[i].indexOf('.txt')>= 0) {
-                console.log('adding ' + items[i]);
-                fileQueue.push(directory_to_monitor + '/' + items[i])
-                var logdir = directory_to_monitor + '/' + items[i];
-                if(fs.existsSync(logdir.replace('.txt','')) == true) { 
-                    fs.rmdirSync(logdir.replace('.txt','')); 
+            if(items[i].indexOf('rotated')>= 0 && items[i].indexOf('.uploaded')>= 0) {
+                console.log('adding ' + items[i].replace('.uploaded',''));
+                fileQueue.push(directory_to_monitor + '/' + items[i].replace('.uploaded',''))
+                if(fs.existsSync(items[i]) == true) { 
+                    fs.rmdirSync(items[i]); 
                 }
             }
         }
@@ -130,11 +129,10 @@ function startFileMonitor() {
                 if(events[i]['action'] == 0) { // only interested with file renamed
                     // a dir is created after file completes upload
                     var newfile = "" + events[i]['directory'] + "/" + events[i]['file']                            
-                    if(newfile.indexOf('.txt') > 0) continue;
-                    // expecting 'rotated' directory that signals write is completed
-                    if(newfile.indexOf('rotated') > -1){ 
+                    // expecting '.uploaded' directory that signals write is completed
+                    if(newfile.indexOf('.uploaded') > -1){ 
                         fs.rmdirSync(newfile);
-                        fileQueue.push(newfile + '.txt');
+                        fileQueue.push(newfile.replace('.uploaded',''));
                         processFile(fileQueue.shift());
                         if(fileQueue.length > 0) setTimeout(function(){ processFile(fileQueue.shift()); }, 500)
                     }
