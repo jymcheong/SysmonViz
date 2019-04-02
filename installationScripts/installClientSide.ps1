@@ -1,5 +1,5 @@
 # Use a Admin CMD console & paste:  
-# powershell -nop -c "$odbserver='YOUR_ODB_HOST';iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installsysmonviz.ps1')"
+# powershell -nop -c "$odbserver='YOUR_ODB_HOST';iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installClientSide.ps1')"
 $nxlogpath = "c:\sysmonviz\nxlog"
 $p = [Environment]::GetFolderPath("Desktop") + "\sysmonviz"
 New-Item -Force -ItemType directory -Path $p
