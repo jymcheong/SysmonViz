@@ -7,7 +7,7 @@ cd $p
 
 Import-Module BitsTransfer
 (New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Sysmon.zip", "$p\sysmon.zip")
-Start-BitsTransfer -Source "https://nxlog.co/system/files/products/files/348/nxlog-ce-2.10.2102.msi" -Destination "$p\nxlog.msi"
+Start-BitsTransfer -Source "https://nxlog.co/system/files/products/files/348/nxlog-ce-2.10.2150.msi" -Destination "$p\nxlog.msi"
 Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/configFiles/smconfig.xml" -Destination "$p\smconfig.xml"
 Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/configFiles/nxlog.conf" -Destination "$p\nxlog.conf"
 Start-BitsTransfer -Source "https://raw.githubusercontent.com/jymcheong/SysmonViz/master/insertEvents.ps1" -Destination "$p\insertEvents.ps1"
