@@ -43,29 +43,21 @@ Please ensure **wget** & **Java** **8+ runtime** are installed. Download the [in
 
 ### Windows Client (tested on 7-10 32/64bit) 
 
-Use an **admin CMD console** & paste the following ([review script source](https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installsysmonviz.ps1)):
+1. For Windows 7, please install Powershell 5
+
+2. Use an **admin CMD console** 
+
+3. Replace YOURSERVERIP below with your OrientDB server IP
+
+4. Paste into CMD console to execute  
+
+   ([review script source](https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installsysmonviz.ps1)):
 
 ```
 cd %userprofile%\desktop
-powershell -nop -c "$odbserver='YOURSERVERIP';iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installsysmonviz.ps1')"
+powershell -nop -c "$odbserver='YOURSERVERIP';iex(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/jymcheong/SysmonViz/master/installationScripts/installClientSide.ps1')"
 ```
 
-Please **REPLACE YOURSERVERIP** with your OrientDB server IP. For example, if your server IP is 192.168.1.10:
-
-`... -nop -c "$odbserver='192.168.1.10';iex..."`
-
 Please ensure that the Windows (to-be-monitored) host can communicate with your OrientDB server. ***ie. Able to visit OrientDB web admin page with the host's browser.***
-
-A breakdown of what the script is doing:
-
-1. Creates a Desktop folder *sysmonviz*
-2. Downloads Sysmon, Nxlog-CE, 2 custom configuration files & filemonitor.js into the earlier folder
-3. Does all the installations
-4. Pops up the log folder, you should see logs appearing in rotated files; a success indicator
-5. Installs a Windows Task Scheduler to start filemonitor.js **upon startup**.
-6. Launches another Powershell script to install portable nodeJS for filemonitor.js.
-7. Pops up notepad for you to ~~edit~~ CHECK filemonitor.js. **CHECK that with your OrientDB hostname or IP address is correct** 
-
-**After you reboot your Windows client, the filemonitor.js will run & insert Sysmon events into the OrientDB.**
 
 Do take a look at some of the [useful queries in the wiki section](https://github.com/jymcheong/SysmonViz/wiki/Useful-queries).
