@@ -10,7 +10,7 @@ $queue = [System.Collections.Queue] @()
 
 # Connect to ODB
 try {
-    $response = Invoke-Webrequest -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -UseBasicParsing  "$odbURI/connect/DataFusion" -WebSession $session
+    $response = Invoke-Webrequest -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -UseBasicParsing  "$odbURI/connect/SysmonViz" -WebSession $session
 }
 catch{
     $_.Exception.Message
@@ -24,7 +24,7 @@ function processFile($filename) {
             $escaped = [Microsoft.JScript.Eval]::JScriptEvaluate($js,$jsEngine);
             $body = '{"jsondata":"'+ $escaped + '"}'
             try {
-              $response = Invoke-Webrequest -WebSession $session  -UseBasicParsing  "$odbURI/function/DataFusion/AddEvent" -Method Post -Body $body -ContentType "application/json"
+              $response = Invoke-Webrequest -WebSession $session  -UseBasicParsing  "$odbURI/function/SysmonViz/AddEvent" -Method Post -Body $body -ContentType "application/json"
             }
             catch {
                $_.Exception.ItemName
