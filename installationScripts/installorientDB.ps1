@@ -21,7 +21,5 @@ Start-Process -FilePath "$env:comspec"  -ArgumentList "/c orientdb-3.0.17\bin\se
 Write-host "\n"
 Read-Host -Prompt  "Please check the orientDB server console for 'Server is Active' before pressing any key to continue"
 Start-BitsTransfer -Source https://raw.githubusercontent.com/jymcheong/SysmonViz/master/schema.gz -Destination "$p\schema.gz"
-orientdb-3.0.17\bin\console.bat "create database remote:localhost\DataFusion root $root_pass; import database schema.gz;"
-
 Start-BitsTransfer -Source https://raw.githubusercontent.com/jymcheong/SysmonViz/master/functions.json -Destination "$p\functions.json"
-orientdb-3.0.17\bin\console.bat "create database remote:localhost\DataFusion root $root_pass; import database functions.json -merge=true;"
+orientdb-3.0.17\bin\console.bat "create database remote:localhost\SysmonViz root $root_pass; import database schema.gz; import database functions.json -merge=true;"
